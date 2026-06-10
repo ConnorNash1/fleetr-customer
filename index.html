@@ -1,0 +1,3359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#1F1E1D" />
+  <title>fleetr vehicle inspection</title>
+  <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-title" content="fleetr ai" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: #F9F9F7;
+      color: #F9F9F7;
+      font-family: 'Inter', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+    }
+
+    /* ── Progress bar ─────────────────────────────────────────── */
+    .progress-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: #111d1d;
+      z-index: 200;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #42a4ff;
+      transition: width 0.45s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ── App shell ────────────────────────────────────────────── */
+    .app {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100dvh;
+    }
+
+    /* ── Screens ──────────────────────────────────────────────── */
+    .screen {
+      display: none;
+      flex-direction: column;
+      min-height: 100dvh;
+      padding: 72px 24px 48px;
+    }
+    .screen.active { display: flex; }
+
+    /* ── Logo ─────────────────────────────────────────────────── */
+    .logo {
+      display: block;
+      width: 150px;
+      margin: 0 auto 28px;
+    }
+
+    /* ── Typography ───────────────────────────────────────────── */
+    h1 {
+      font-size: 1.65rem;
+      font-weight: 700;
+      color: #F9F9F7;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 0.95rem;
+      color: #6b8090;
+      text-align: center;
+      line-height: 1.55;
+      margin-bottom: 32px;
+    }
+    .step-label {
+      font-size: 0.75rem;
+      color: #42a4ff;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .optional-badge {
+      display: block;
+      text-align: center;
+      background: none;
+      color: #6b8090;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.78rem;
+      padding: 0;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      margin: 0 auto 20px;
+    }
+
+    /* ── Vehicle card ─────────────────────────────────────────── */
+    .vehicle-card {
+      background: #ffffff;
+      border: 1px solid #d0d8e0;
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-bottom: 20px;
+    }
+    .vehicle-card .v-plate {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #42a4ff;
+      letter-spacing: 0.1em;
+    }
+    .vehicle-card .v-detail {
+      font-size: 0.9rem;
+      color: #6b8090;
+      margin-top: 4px;
+    }
+    .vehicle-card .v-winter {
+      font-size: 0.88rem;
+      color: #42a4ff;
+      margin-top: 6px;
+    }
+
+    /* ── Form elements ────────────────────────────────────────── */
+    label {
+      display: block;
+      font-size: 0.78rem;
+      color: #6b8090;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      margin-bottom: 7px;
+    }
+    input[type="text"],
+    input[type="number"],
+    input[type="password"],
+    select,
+    textarea {
+      width: 100%;
+      background: #0a1818;
+      border: 1px solid #1a2e2e;
+      border-radius: 11px;
+      color: #F9F9F7;
+      font-family: 'Lekton', monospace;
+      font-size: 1.1rem;
+      padding: 15px 16px;
+      margin-bottom: 22px;
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    input[type="password"]:focus,
+    select:focus { border-color: #42a4ff; }
+    input::placeholder { color: #2a3a3a; }
+    select option { background: #0a1818; }
+
+    /* Custom select arrow */
+    .select-wrap { position: relative; margin-bottom: 22px; }
+    .select-wrap select { margin-bottom: 0; }
+    .select-wrap::after {
+      content: '▾';
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #6b8090;
+      pointer-events: none;
+      font-size: 1rem;
+    }
+
+    /* Fuel range */
+    input[type="range"] {
+      width: 100%;
+      accent-color: #42a4ff;
+      margin-bottom: 6px;
+      cursor: pointer;
+      height: 6px;
+    }
+    .fuel-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: #6b8090;
+      margin-bottom: 28px;
+    }
+    .fuel-value {
+      text-align: center;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #42a4ff;
+      margin-bottom: 8px;
+    }
+
+    /* ── Buttons ──────────────────────────────────────────────── */
+    .btn {
+      width: 100%;
+      padding: 17px 20px;
+      border-radius: 11px;
+      border: none;
+      font-family: 'Inter', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 400;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: opacity 0.15s, transform 0.1s;
+      margin-bottom: 12px;
+    }
+    .btn:active { transform: scale(0.97); opacity: 0.8; }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+    .btn-primary   { background: #42a4ff; color: #1F1E1D; }
+    .btn-secondary { background: transparent; color: #42a4ff; border: 1.5px solid #42a4ff; }
+    .btn-ghost     { background: transparent; color: #6b8090; }
+    .btn-danger    { background: #dc2626; color: #F9F9F7; border: none; }
+    .btn-manual-toggle {
+      background: none;
+      border: none;
+      color: #6b8090;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.88rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      transition: color 0.15s;
+    }
+    .btn-manual-toggle:hover { color: #42a4ff; }
+
+    /* ── Screen 1 — light input style ────────────────────────── */
+    #s1 input[type="text"] {
+      background: #ffffff;
+      border: 1px solid #d0d8e0;
+      color: #1F1E1D;
+      font-family: 'Inter', sans-serif;
+    }
+    #s1 input[type="text"]:focus { border-color: #42a4ff; }
+    #s1 input[type="text"]::placeholder { color: #aab4bf; }
+    #s1 label { font-family: 'Inter', sans-serif; color: #42a4ff; }
+    #s1 .btn { font-weight: 400; }
+
+    /* ── Screen 5 — white odometer input ─────────────────────── */
+    #s5 input[type="number"] {
+      background: #ffffff;
+      border: 1px solid #d0d8e0;
+      color: #1F1E1D;
+      font-family: 'Inter', sans-serif;
+    }
+    #s5 input[type="number"]:focus { border-color: #42a4ff; }
+    #s5 input[type="number"]::placeholder { color: #aab4bf; }
+
+    /* ── Info box ─────────────────────────────────────────────── */
+    .info-box {
+      background: #ffffff;
+      border: 1px solid #d0d8e0;
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 0.9rem;
+      color: #4a6070;
+      line-height: 1.55;
+      margin-bottom: 20px;
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* ── Damage list ──────────────────────────────────────────── */
+    .damage-list {
+      list-style: none;
+      margin-bottom: 8px;
+    }
+    .damage-list li {
+      background: #ffffff;
+      border: 1px solid #d0d8e0;
+      border-radius: 9px;
+      padding: 13px 16px;
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+      color: #1F1E1D;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .damage-list li::before {
+      content: '⚠';
+      color: #f59e0b;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .no-damage {
+      text-align: center;
+      color: #22c55e;
+      font-size: 1rem;
+      padding: 18px 0 24px;
+    }
+
+    /* ── Angle grid ───────────────────────────────────────────── */
+    .angles-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+    .angle-item {
+      background: #ffffff;
+      border: 1px solid #d0d8e0;
+      border-radius: 11px;
+      padding: 10px;
+      text-align: center;
+      font-size: 0.85rem;
+      font-family: 'Inter', sans-serif;
+      color: #1F1E1D;
+      line-height: 1.4;
+      font-weight: 500;
+    }
+
+    /* ── Media previews ───────────────────────────────────────── */
+    .video-preview {
+      width: 100%;
+      border-radius: 11px;
+      border: 1px solid #1a2e2e;
+      background: #0a1818;
+      margin-bottom: 16px;
+      display: none;
+      max-height: 220px;
+      object-fit: cover;
+    }
+    .odo-preview {
+      width: 100%;
+      max-height: 200px;
+      object-fit: cover;
+      border-radius: 11px;
+      border: 1px solid #1a2e2e;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    /* ── Photo list ───────────────────────────────────────────── */
+    .photo-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .photo-link {
+      display: block;
+      width: 100%;
+      padding: 12px 16px;
+      background: #0f2020;
+      border: 1px solid #1a2e2e;
+      border-radius: 10px;
+      color: #42a4ff;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.92rem;
+      font-weight: 500;
+      text-align: left;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .photo-link:active { background: #162b2b; }
+
+    /* ── Photo lightbox ───────────────────────────────────────── */
+    .photo-lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.88);
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+    }
+    .photo-lightbox.open { display: flex; }
+    .photo-lightbox img {
+      width: 90vw;
+      height: 80vh;
+      max-width: 480px;
+      object-fit: contain;
+      border-radius: 10px;
+      display: block;
+    }
+    .photo-lightbox-close {
+      position: absolute;
+      top: 16px; right: 18px;
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 1.8rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    /* ── License scan modal ──────────────────────────────────── */
+    .scan-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 1000;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .scan-modal.open { display: flex; }
+    .scan-modal-close {
+      position: absolute;
+      top: 16px; right: 18px;
+      background: none;
+      border: none;
+      color: #F9F9F7;
+      font-size: 1.8rem;
+      line-height: 1;
+      cursor: pointer;
+      z-index: 10;
+    }
+    .scan-modal-hint {
+      color: #6b8090;
+      font-size: 0.88rem;
+      text-align: center;
+      padding: 0 24px;
+      margin-bottom: 16px;
+      letter-spacing: 0.03em;
+    }
+    .scan-video-wrap {
+      position: relative;
+      width: min(90vw, 440px);
+      aspect-ratio: 4/3;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 2px solid #42a4ff;
+      background: #000;
+    }
+    .scan-video-wrap video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .scan-crosshair {
+      position: absolute;
+      inset: 20%;
+      border: 2px solid rgba(66,164,255,0.6);
+      border-radius: 6px;
+      pointer-events: none;
+    }
+    .scan-status {
+      margin-top: 18px;
+      color: #6b8090;
+      font-size: 0.82rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    /* ── Step progress bar ───────────────────────────────────── */
+    .step-bar {
+      display: flex;
+      gap: 5px;
+      width: 100%;
+      margin-bottom: 18px;
+    }
+    .step-bar__seg {
+      flex: 1;
+      height: 3px;
+      border-radius: 2px;
+      background: #d0d8e0;
+    }
+    .step-bar__seg.active { background: #42a4ff; }
+
+    /* ── Skip link ────────────────────────────────────────────── */
+    .skip-link {
+      background: none;
+      border: none;
+      color: #6b8090;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      cursor: pointer;
+      padding: 8px 0;
+      text-align: center;
+      width: 100%;
+      display: block;
+      margin-bottom: 12px;
+    }
+    .skip-link:active { opacity: 0.6; }
+
+    /* ── Screen 5 labels ─────────────────────────────────────── */
+    #s5 label { color: #42a4ff; }
+
+    /* ── Signature ────────────────────────────────────────────── */
+    .sig-wrap {
+      background: #ffffff;
+      border: 1px solid #d0d8e0;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 10px;
+      position: relative;
+    }
+    #sigCanvas {
+      display: block;
+      width: 100%;
+      cursor: crosshair;
+      touch-action: none;
+    }
+    .sig-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      color: #aab4bf;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.88rem;
+      letter-spacing: 0.03em;
+    }
+
+    /* ── Done screen ──────────────────────────────────────────── */
+    .done-icon {
+      text-align: center;
+      margin-bottom: 12px;
+      line-height: 1;
+    }
+    .done-summary {
+      background: #0a1818;
+      border: 1px solid #1a2e2e;
+      border-radius: 14px;
+      padding: 6px 20px;
+      margin-bottom: 28px;
+    }
+    .done-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 13px 0;
+      border-bottom: 1px solid #111e1e;
+      font-size: 0.95rem;
+    }
+    .done-row:last-child { border-bottom: none; }
+    .done-row .dr-label { color: #6b8090; }
+    .done-row .dr-value { font-weight: 700; color: #F9F9F7; }
+
+    /* ── Error & loading ──────────────────────────────────────── */
+    .error-msg {
+      color: #f87171;
+      font-size: 0.88rem;
+      text-align: center;
+      min-height: 22px;
+      margin-bottom: 8px;
+    }
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(6,13,12,0.3);
+      border-top-color: #1F1E1D;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .spacer { flex: 1; min-height: 16px; }
+
+    /* ── Return flow ──────────────────────────────────────────── */
+    .return-back-btn {
+      background: none;
+      border: none;
+      color: #42a4ff;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.88rem;
+      cursor: pointer;
+      padding: 0 0 18px;
+      text-align: left;
+      align-self: flex-start;
+    }
+    .return-back-btn:active { opacity: 0.6; }
+
+    .return-media-preview {
+      width: 100%;
+      border-radius: 11px;
+      border: 1px solid #1a2e2e;
+      display: none;
+      margin-bottom: 16px;
+      background: #000;
+    }
+
+    .damage-choice {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    textarea.return-textarea {
+      width: 100%;
+      background: #0a1818;
+      border: 1px solid #1a2e2e;
+      border-radius: 11px;
+      color: #F9F9F7;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      padding: 15px 16px;
+      margin-bottom: 22px;
+      outline: none;
+      resize: none;
+      transition: border-color 0.2s;
+    }
+    textarea.return-textarea:focus { border-color: #42a4ff; }
+
+    /* ── Staff overlay — sign-in & plate search styling ────────────────── */
+    .staff-overlay .staff-header-title {
+      color: #42a4ff;
+    }
+    .staff-overlay label {
+      color: #42a4ff;
+      font-family: 'Inter', sans-serif;
+    }
+    .staff-overlay input[type="text"],
+    .staff-overlay input[type="number"],
+    .staff-overlay input[type="password"],
+    .staff-overlay select {
+      background: #1F1E1D;
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #F9F9F7;
+      font-family: 'Inter', sans-serif;
+    }
+    .staff-overlay input[type="text"]:focus,
+    .staff-overlay input[type="number"]:focus,
+    .staff-overlay input[type="password"]:focus,
+    .staff-overlay select:focus { border-color: #42a4ff; }
+    .staff-overlay input::placeholder { color: rgba(255,255,255,0.35); }
+    .staff-overlay select option { background: #0d1a1a; }
+    .staff-overlay .btn { font-family: 'Inter', sans-serif; }
+    .staff-overlay h1 { color: #F9F9F7; font-family: 'Inter', sans-serif; }
+
+    /* ── Staff FAB ───────────────────────────────────────────────────────── */
+    .staff-fab {
+      position: fixed;
+      bottom: 22px;
+      right: 18px;
+      z-index: 500;
+      background: #0a1818;
+      color: #6b8090;
+      border: 1px solid #1a3a3a;
+      border-radius: 20px;
+      padding: 9px 18px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+    }
+    .staff-fab:hover { background: #1a2e2e; color: #F9F9F7; border-color: #42a4ff; }
+
+    /* ── Staff overlay ───────────────────────────────────────────────────── */
+    .staff-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      background: #1F1E1D;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .staff-overlay.open { display: block; }
+
+    .staff-screen {
+      display: none;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 0 20px 56px;
+      min-height: 100dvh;
+      flex-direction: column;
+    }
+    .staff-screen.active { display: flex; }
+
+    /* Staff header */
+    .staff-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 20px 0 24px;
+      border-bottom: 1px solid #111d1d;
+      margin-bottom: 28px;
+    }
+    .staff-header-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #6b8090;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      flex: 1;
+      text-align: center;
+    }
+    .staff-back {
+      background: none;
+      border: none;
+      color: #42a4ff;
+      font-size: 0.88rem;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      padding: 4px 0;
+      flex-shrink: 0;
+      width: 56px;
+      text-align: left;
+    }
+    .staff-back-spacer { width: 56px; flex-shrink: 0; }
+
+    /* RA list cards */
+    .ra-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid transparent;
+      border-radius: 13px;
+      padding: 15px 17px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: border-color 0.18s;
+    }
+    .ra-card:hover { border-color: #42a4ff; }
+    .ra-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .ra-card-customer {
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #F9F9F7;
+    }
+    .ra-status-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+    .badge-open    { background: #0d2a1a; color: #22c55e; }
+    .badge-pending { background: #2a1f08; color: #f59e0b; }
+    .ra-card-meta {
+      font-size: 0.82rem;
+      color: #6b8090;
+      line-height: 1.6;
+    }
+    .ra-card-meta span { color: #8faabb; }
+
+    /* RA Detail */
+    .detail-section-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #42a4ff;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 22px 0 8px;
+    }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 9px 0;
+      border-bottom: 1px solid #0e1e1e;
+      gap: 14px;
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label { font-size: 0.82rem; color: #6b8090; flex-shrink: 0; }
+    .detail-value { font-size: 0.88rem; color: #F9F9F7; font-weight: 600; text-align: right; }
+    .damage-flag-yes { color: #f87171; }
+    .damage-flag-no  { color: #22c55e; }
+
+    /* Charges */
+    .charge-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      background: #0a1818;
+      border: 1px solid #1a2e2e;
+      border-radius: 9px;
+      margin-bottom: 7px;
+      gap: 10px;
+    }
+    .charge-item-left { flex: 1; }
+    .charge-item-type {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #42a4ff;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+    .charge-item-desc { font-size: 0.83rem; color: #8faabb; margin-top: 2px; }
+    .charge-item-amount { font-size: 0.98rem; font-weight: 700; color: #F9F9F7; flex-shrink: 0; }
+
+    /* Add charge form */
+    .add-charge-form {
+      background: #1F1E1D;
+      border: none;
+      border-radius: 13px;
+      padding: 16px 16px 4px;
+      margin-top: 12px;
+    }
+    .add-charge-form label { margin-bottom: 5px; }
+    .add-charge-form input,
+    .add-charge-form select { margin-bottom: 12px; padding: 12px 14px; font-size: 0.95rem; }
+    #chargeAmount::-webkit-outer-spin-button,
+    #chargeAmount::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    #chargeAmount { -moz-appearance: textfield; }
+
+    /* PIN confirmation */
+    .pin-confirm-box {
+      background: #0a1818;
+      border: 1px solid #1a2e2e;
+      border-radius: 13px;
+      padding: 24px 20px 20px;
+      margin-bottom: 20px;
+    }
+    .pin-confirm-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #6b8090;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      display: block;
+    }
+    .pin-confirm-box input[type="password"] {
+      text-align: center;
+      letter-spacing: 0.4em;
+      font-size: 1.4rem;
+      margin-bottom: 0;
+    }
+
+    /* Vehicle status grid */
+    .vstatus-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .vstatus-btn {
+      background: #152525;
+      border: 2px solid #1e3535;
+      border-radius: 11px;
+      color: #8faabb;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 16px 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.18s, color 0.18s, background 0.18s;
+      line-height: 1.35;
+    }
+    .vstatus-btn:hover    { border-color: #42a4ff; color: #42a4ff; }
+    .vstatus-btn.selected { border-color: #42a4ff; background: #0d2040; color: #42a4ff; }
+    .vstatus-saving {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #6b8090;
+      margin-top: 14px;
+      min-height: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="progress-bar">
+    <div class="progress-fill" id="progressFill" style="width:0%"></div>
+  </div>
+
+  <div class="app">
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Screen 1 — Enter Plate
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen active" id="s1">
+      <div style="font-family:'Inter',sans-serif;color:#42a4ff;font-size:3.5rem;font-weight:900;text-align:center;margin-bottom:8px;letter-spacing:-0.03em;">fleetr</div>
+      <h1>Welcome to Fleetr</h1>
+      <p class="subtitle">Enter your reservation details to begin your vehicle inspection.</p>
+
+      <label for="resCodeInput">Reservation Code</label>
+      <input type="text" id="resCodeInput" placeholder="ABC 123 456"
+             autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+
+      <button class="btn btn-primary" id="scanLicenseBtn" type="button">Scan License</button>
+      <div style="text-align:center; margin-top:-4px; margin-bottom:16px;">
+        <button type="button" id="manualToggleBtn" class="btn-manual-toggle">Enter details manually</button>
+      </div>
+      <div id="manualLicenseForm" style="display:none;">
+        <label for="firstNameInput">First Name</label>
+        <input type="text" id="firstNameInput" placeholder="John"
+               autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" />
+        <label for="lastNameInput">Last Name</label>
+        <input type="text" id="lastNameInput" placeholder="Smith"
+               autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" />
+        <label for="licenseInput">DL Number</label>
+        <input type="text" id="licenseInput" placeholder="No spaces or dashes"
+               autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+        <label for="dobInput">Date of Birth</label>
+        <input type="text" id="dobInput" placeholder="YYYY-MM-DD"
+               autocomplete="off" autocorrect="off" spellcheck="false" />
+        <label for="dlExpiryInput">Expiry</label>
+        <input type="text" id="dlExpiryInput" placeholder="YYYY-MM-DD"
+               autocomplete="off" autocorrect="off" spellcheck="false" />
+        <label for="addressInput">Address</label>
+        <input type="text" id="addressInput" placeholder="123 Main St"
+               autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" />
+        <label for="postalCodeInput">Postal Code</label>
+        <input type="text" id="postalCodeInput" placeholder="A1A 1A1"
+               autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+      </div>
+
+      <label for="plateInput">License Plate</label>
+      <input type="text" id="plateInput" placeholder="No spaces or dashes"
+             autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+
+      <button class="btn btn-primary" id="findVehicleBtn">Start Rental Process</button>
+
+      <div class="error-msg" id="s1Error"></div>
+      <div class="spacer"></div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Screen 2 — Pre-Existing Damage
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="s2">
+      <button class="return-back-btn" id="s2Back">← Back</button>
+      <div class="step-label">Step 1 of 5</div>
+      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div></div>
+      <h1>Pre-Existing Damage</h1>
+
+      <div class="vehicle-card" id="vehicleCard">
+        <div class="v-plate">—</div>
+        <div class="v-detail">—</div>
+      </div>
+
+      <div class="info-box" id="s2InfoBox">
+        The following damage has been documented on this vehicle.<br />
+        You are not responsible for it.
+      </div>
+
+      <ul class="damage-list" id="damageList"></ul>
+      <p class="no-damage" id="noDamageMsg" style="display:none">✓ No pre-existing damage documented</p>
+
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="s2Btn">I Understand, Continue →</button>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Screen 3 — Walkaround Video
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="s3">
+      <button class="return-back-btn" id="s3Back">← Back</button>
+      <div class="step-label">Step 2 of 5</div>
+      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div></div>
+      <h1>Walkaround Video</h1>
+      <p class="subtitle" id="s3Subtitle">Record a short video walking around the entire outside of the vehicle, covering all four sides.</p>
+
+      <div class="angles-grid">
+        <div class="angle-item">Front</div>
+        <div class="angle-item">Rear</div>
+        <div class="angle-item">Driver Side</div>
+        <div class="angle-item">Passenger Side</div>
+      </div>
+
+      <video class="video-preview" id="videoPreview" controls playsinline></video>
+
+      <input type="file" id="recordVideoInput" accept="video/*" capture="environment" style="display:none" />
+      <input type="file" id="uploadVideoInput" accept="video/*" style="display:none" />
+
+      <button class="btn btn-primary" id="recordVideoBtn">Record Video</button>
+      <button class="btn btn-primary" id="uploadVideoBtn">Upload from Library</button>
+
+      <div class="spacer"></div>
+      <button class="skip-link" id="s3Skip">Skip this step</button>
+      <button class="btn btn-primary" id="s3Next" style="display:none">Continue →</button>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Screen 4 — Photos of Concern
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="s4">
+      <button class="return-back-btn" id="s4Back">← Back</button>
+      <div class="step-label">Step 3 of 5</div>
+      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div></div>
+      <h1>Photos of Concern</h1>
+      <div class="optional-badge">Optional</div>
+      <p class="subtitle" id="s4Subtitle" style="margin-bottom:20px">See any damage not listed? Photograph it now to protect yourself.</p>
+
+      <div class="photo-grid" id="photoGrid"></div>
+
+      <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="display:none" />
+      <button class="btn btn-primary" id="addPhotoBtn">Add Photos</button>
+
+      <div class="spacer"></div>
+      <button class="skip-link" id="s4Skip">Skip</button>
+      <button class="btn btn-primary" id="s4Next" style="display:none">Continue →</button>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Screen 5 — Odometer & Fuel
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="s5">
+      <button class="return-back-btn" id="s5Back">← Back</button>
+      <div class="step-label">Step 4 of 5</div>
+      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg"></div></div>
+      <h1>Odometer &amp; Fuel</h1>
+      <p class="subtitle">Take a photo of the odometer and fuel gauge, or enter the readings manually.</p>
+
+      <img class="odo-preview" id="odoPreview" alt="Odometer" />
+      <input type="file" id="odoPhotoInput" accept="image/*" capture="environment" style="display:none" />
+      <button class="btn btn-primary" id="takeOdoBtn">Take Photo of Dash</button>
+
+      <label for="mileageInput">Odometer Reading (km)</label>
+      <input type="number" id="mileageInput" placeholder="e.g. 42 500" min="0" step="1" />
+
+      <label>Fuel Level</label>
+      <div class="fuel-value" id="fuelValueLabel">Empty</div>
+      <input type="range" id="fuelRange" min="0" max="8" value="0" step="1" />
+      <div class="fuel-labels">
+        <span>Empty</span><span>¼</span><span>½</span><span>¾</span><span>Full</span>
+      </div>
+
+      <div class="spacer"></div>
+      <div class="error-msg" id="s5Error"></div>
+      <button class="btn btn-primary" id="s5Next">Continue →</button>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Screen 6 — Digital Signature
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="s6">
+      <button class="return-back-btn" id="s6Back">← Back</button>
+      <div class="step-label">Step 5 of 5</div>
+      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div></div>
+      <h1>Sign to Confirm</h1>
+      <p class="subtitle" id="s6Subtitle">By signing below you confirm you have inspected the vehicle and accept it in its current documented condition.</p>
+
+      <div class="sig-wrap">
+        <canvas id="sigCanvas" height="240"></canvas>
+        <div class="sig-placeholder" id="sigPlaceholder">Sign with your finger or stylus</div>
+      </div>
+
+      <div class="spacer"></div>
+      <button class="btn btn-secondary" id="clearSigBtn">Clear Signature</button>
+      <button class="btn btn-primary" id="submitBtn">Submit Inspection</button>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Screen 7 — Done
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="s7">
+      <div class="spacer"></div>
+      <div class="done-icon" id="s7Icon"><svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="29" stroke="#42a4ff" stroke-width="2.5"/><path d="M20 32l9 9 15-16" stroke="#42a4ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h1 id="s7Title">You're Good to Go!</h1>
+      <p class="subtitle" id="s7Subtitle">Your inspection is complete and on file. Enjoy your rental.</p>
+      <div class="done-summary" id="doneSummary"></div>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="s7DoneBtn">Done</button>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Screen 8 — Return: Odometer Reading
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="s8">
+      <button class="return-back-btn" id="s8Back">← Back</button>
+      <div class="step-label">Return · Step 1 of 6</div>
+      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div></div>
+      <h1>Odometer Reading</h1>
+      <p class="subtitle">Enter the current odometer reading.</p>
+
+      <label for="returnMileageInput">Odometer Reading (km)</label>
+      <input type="number" id="returnMileageInput" placeholder="e.g. 42 500" min="0" step="1" />
+
+      <div class="optional-badge">Optional</div>
+      <input type="file" id="returnOdoPhotoInput" accept="image/*" capture="environment" style="display:none" />
+      <button class="btn btn-secondary" id="takeReturnOdoPhotoBtn">📷 &nbsp;Photo of Odometer</button>
+      <img id="returnOdoPreview" class="return-media-preview" alt="Odometer photo" />
+
+      <div class="spacer"></div>
+      <div class="error-msg" id="s8Error"></div>
+      <button class="btn btn-primary" id="s8Next">Continue →</button>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Screen 9 — Return: Fuel Level
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="s9">
+      <button class="return-back-btn" id="s9Back">← Back</button>
+      <div class="step-label">Return · Step 2 of 6</div>
+      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div></div>
+      <h1>Fuel Level</h1>
+      <p class="subtitle">Set the slider to the current fuel level.</p>
+
+      <label>Fuel Level</label>
+      <div class="fuel-value" id="returnFuelValueLabel">Full</div>
+      <input type="range" id="returnFuelRange" min="0" max="8" value="8" step="1" />
+      <div class="fuel-labels">
+        <span>Empty</span><span>¼</span><span>½</span><span>¾</span><span>Full</span>
+      </div>
+
+      <div class="optional-badge">Optional</div>
+      <input type="file" id="returnFuelPhotoInput" accept="image/*" capture="environment" style="display:none" />
+      <button class="btn btn-secondary" id="takeReturnFuelPhotoBtn">📷 &nbsp;Photo of Fuel Gauge</button>
+      <img id="returnFuelPreview" class="return-media-preview" alt="Fuel gauge photo" />
+
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="s9Next">Continue →</button>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Screen 9b — Return: Previous Damage on Record
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="s9b">
+      <button class="return-back-btn" id="s9bBack">← Back</button>
+      <div class="step-label">Return · Step 3 of 6</div>
+      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div></div>
+      <h1>Previous Damage</h1>
+      <p class="subtitle">The following damage was already on record when you picked up this vehicle. You are not responsible for it.</p>
+
+      <ul class="damage-list" id="returnPrevDamageList" style="display:none"></ul>
+      <div class="no-damage" id="returnNoDamageMsg" style="display:none">✓ No previous damage was on record for this vehicle.</div>
+
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="s9bNext">I Understand — Continue →</button>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Screen 10 — Return: Damage Check
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="s10">
+      <button class="return-back-btn" id="s10Back">← Back</button>
+      <div class="step-label">Return · Step 4 of 6</div>
+      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div></div>
+      <h1>New Damage?</h1>
+      <p class="subtitle">Any new damage to report since pickup?</p>
+
+      <div class="damage-choice">
+        <button class="btn btn-primary"  id="damageNoBtn">No new damage →</button>
+        <button class="btn btn-danger"   id="damageYesBtn">Yes, report damage</button>
+      </div>
+
+      <div id="damageFields" style="display:none">
+        <label>Photos <span style="color:#6b8090;font-size:0.78rem;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <div class="photo-grid" id="returnPhotoGrid"></div>
+        <input type="file" id="returnDamagePhotoInput" accept="image/*" capture="environment" multiple style="display:none" />
+        <button class="btn btn-secondary" id="addReturnPhotoBtn" style="margin-bottom:22px">📷 &nbsp;Add Photos</button>
+
+        <label>Video <span style="color:#6b8090;font-size:0.78rem;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <input type="file" id="returnDamageVideoInput" accept="video/*" capture="environment" style="display:none" />
+        <button class="btn btn-secondary" id="addReturnVideoBtn" style="margin-bottom:16px">🎥 &nbsp;Add Video</button>
+        <video id="returnDamageVideoPreview" class="return-media-preview" controls></video>
+
+        <label for="returnDamageDesc">Description</label>
+        <textarea id="returnDamageDesc" class="return-textarea" placeholder="Describe the damage…" rows="4"></textarea>
+      </div>
+
+      <div class="spacer"></div>
+      <div class="error-msg" id="s10Error"></div>
+      <button class="btn btn-primary" id="s10Submit" style="display:none">Submit Return</button>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Screen 10b — Return: Vehicle Location
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="s10b">
+      <button class="return-back-btn" id="s10bBack">← Back</button>
+      <div class="step-label">Return · Step 5 of 6</div>
+      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg"></div></div>
+      <h1>Vehicle Location</h1>
+      <p class="subtitle">Where have you parked or left the vehicle?</p>
+
+      <label for="vehicleLocationInput">Location Description</label>
+      <textarea id="vehicleLocationInput" class="return-textarea"
+                placeholder="e.g. Row 3, space 14, near the front entrance" rows="4"></textarea>
+
+      <div class="spacer"></div>
+      <div class="error-msg" id="s10bError"></div>
+      <button class="btn btn-primary" id="s10bSubmit">Submit Return</button>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Screen 11 — Return: Confirmation
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="s11">
+      <div class="spacer"></div>
+      <div class="done-icon"><svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="29" stroke="#42a4ff" stroke-width="2.5"/><path d="M20 32l9 9 15-16" stroke="#42a4ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h1>Return Submitted</h1>
+      <p class="subtitle">Your return has been submitted.<br/>Please leave your keys with a staff member.</p>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="s11DoneBtn">Done</button>
+    </div>
+
+  </div><!-- /.app -->
+
+  <!-- Photo lightbox — rendered outside .app so it covers the full screen -->
+  <div class="photo-lightbox" id="photoLightbox">
+    <button class="photo-lightbox-close" id="photoLightboxClose">&#x2715;</button>
+    <img id="photoLightboxImg" src="" alt="Photo" />
+  </div>
+
+  <!-- License scan modal -->
+  <div class="scan-modal" id="scanModal">
+    <button class="scan-modal-close" id="scanModalClose">&#x2715;</button>
+    <p class="scan-modal-hint">Point the camera at the PDF417 barcode on the back of the driver's license</p>
+    <div class="scan-video-wrap">
+      <video id="scanVideo" autoplay playsinline muted></video>
+      <div class="scan-crosshair"></div>
+    </div>
+    <p class="scan-status" id="scanStatus">Scanning…</p>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Staff FAB
+  ═══════════════════════════════════════════════════════════ -->
+  <button class="staff-fab" id="staffBtn">Staff</button>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Staff Overlay
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="staff-overlay" id="staffOverlay">
+
+    <!-- Staff: Login -->
+    <div class="staff-screen active" id="ss-login">
+      <div class="staff-header">
+        <button class="staff-back" id="staffCloseBtn">✕</button>
+        <div class="staff-header-title">Staff Portal</div>
+        <div class="staff-back-spacer"></div>
+      </div>
+      <h1 style="text-align:left;font-size:1.35rem;margin-bottom:6px">Sign In</h1>
+      <p class="subtitle" style="text-align:left;margin-bottom:28px">Enter your staff credentials to continue.</p>
+      <label for="staffUsername">Username</label>
+      <input type="text" id="staffUsername" placeholder="Enter username"
+             autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" />
+      <label for="staffPassword">Password</label>
+      <input type="password" id="staffPassword" placeholder="Enter your password"
+             autocomplete="off" />
+      <div class="error-msg" id="ss-login-error"></div>
+      <button class="btn btn-primary" id="staffLoginBtn">Sign In</button>
+    </div>
+
+    <!-- Staff: Plate Search -->
+    <div class="staff-screen" id="ss-plate">
+      <div class="staff-header">
+        <button class="staff-back" id="staffPlateBackBtn">← Back</button>
+        <div class="staff-header-title">Plate Search</div>
+        <div class="staff-back-spacer"></div>
+      </div>
+      <h1 style="text-align:left;font-size:1.35rem;margin-bottom:6px">Plate Lookup</h1>
+      <p class="subtitle" style="text-align:left;margin-bottom:28px">Enter a plate number to view its active rental agreements.</p>
+      <label for="staffPlateInput">License Plate</label>
+      <input type="text" id="staffPlateInput" placeholder="No spaces or dashes"
+             autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+      <label for="staffProvinceSelect">Province / State</label>
+      <div class="select-wrap">
+        <select id="staffProvinceSelect">
+          <option value="">Any Province / State</option>
+          <optgroup label="Canada">
+            <option value="NL">NL — Newfoundland &amp; Labrador</option>
+            <option value="NS">NS — Nova Scotia</option>
+            <option value="NB">NB — New Brunswick</option>
+            <option value="PE">PE — Prince Edward Island</option>
+            <option value="QC">QC — Quebec</option>
+            <option value="ON">ON — Ontario</option>
+            <option value="MB">MB — Manitoba</option>
+            <option value="SK">SK — Saskatchewan</option>
+            <option value="AB">AB — Alberta</option>
+            <option value="BC">BC — British Columbia</option>
+            <option value="YT">YT — Yukon</option>
+            <option value="NT">NT — Northwest Territories</option>
+            <option value="NU">NU — Nunavut</option>
+          </optgroup>
+          <optgroup label="United States">
+            <option value="AL">AL — Alabama</option>
+            <option value="AK">AK — Alaska</option>
+            <option value="AZ">AZ — Arizona</option>
+            <option value="AR">AR — Arkansas</option>
+            <option value="CA">CA — California</option>
+            <option value="CO">CO — Colorado</option>
+            <option value="CT">CT — Connecticut</option>
+            <option value="DE">DE — Delaware</option>
+            <option value="FL">FL — Florida</option>
+            <option value="GA">GA — Georgia</option>
+            <option value="HI">HI — Hawaii</option>
+            <option value="ID">ID — Idaho</option>
+            <option value="IL">IL — Illinois</option>
+            <option value="IN">IN — Indiana</option>
+            <option value="IA">IA — Iowa</option>
+            <option value="KS">KS — Kansas</option>
+            <option value="KY">KY — Kentucky</option>
+            <option value="LA">LA — Louisiana</option>
+            <option value="ME">ME — Maine</option>
+            <option value="MD">MD — Maryland</option>
+            <option value="MA">MA — Massachusetts</option>
+            <option value="MI">MI — Michigan</option>
+            <option value="MN">MN — Minnesota</option>
+            <option value="MS">MS — Mississippi</option>
+            <option value="MO">MO — Missouri</option>
+            <option value="MT">MT — Montana</option>
+            <option value="NE">NE — Nebraska</option>
+            <option value="NV">NV — Nevada</option>
+            <option value="NH">NH — New Hampshire</option>
+            <option value="NJ">NJ — New Jersey</option>
+            <option value="NM">NM — New Mexico</option>
+            <option value="NY">NY — New York</option>
+            <option value="NC">NC — North Carolina</option>
+            <option value="ND">ND — North Dakota</option>
+            <option value="OH">OH — Ohio</option>
+            <option value="OK">OK — Oklahoma</option>
+            <option value="OR">OR — Oregon</option>
+            <option value="PA">PA — Pennsylvania</option>
+            <option value="RI">RI — Rhode Island</option>
+            <option value="SC">SC — South Carolina</option>
+            <option value="SD">SD — South Dakota</option>
+            <option value="TN">TN — Tennessee</option>
+            <option value="TX">TX — Texas</option>
+            <option value="UT">UT — Utah</option>
+            <option value="VT">VT — Vermont</option>
+            <option value="VA">VA — Virginia</option>
+            <option value="WA">WA — Washington</option>
+            <option value="WV">WV — West Virginia</option>
+            <option value="WI">WI — Wisconsin</option>
+            <option value="WY">WY — Wyoming</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="error-msg" id="ss-plate-error"></div>
+      <button class="btn btn-primary" id="staffSearchBtn">Search</button>
+      <div style="margin-top:2px;font-size:0.78rem;color:#F9F9F7;font-family:'Inter',sans-serif;text-align:right">
+        Signed in as <span id="staffUserLabel" style="color:#42a4ff"></span>
+      </div>
+    </div>
+
+    <!-- Staff: RA List -->
+    <div class="staff-screen" id="ss-list">
+      <div class="staff-header">
+        <button class="staff-back" id="staffListBackBtn">← Back</button>
+        <div class="staff-header-title" id="ss-list-title">Agreements</div>
+        <div class="staff-back-spacer"></div>
+      </div>
+      <div id="ss-ra-list"></div>
+      <div class="error-msg" id="ss-list-empty"
+           style="display:none;color:#6b8090;font-size:0.88rem;text-align:left;padding-top:4px">
+        No active rental agreements found for this plate.
+      </div>
+    </div>
+
+    <!-- Staff: RA Detail -->
+    <div class="staff-screen" id="ss-detail">
+      <div class="staff-header">
+        <button class="staff-back" id="staffDetailBackBtn">← Back</button>
+        <div class="staff-header-title" id="ss-detail-title">Agreement</div>
+        <div class="staff-back-spacer"></div>
+      </div>
+      <div id="ss-detail-body"></div>
+    </div>
+
+    <!-- Staff: Charges -->
+    <!-- Staff: Return Inspection -->
+    <div class="staff-screen" id="ss-return">
+      <div class="staff-header">
+        <button class="staff-back" id="staffReturnBackBtn">← Back</button>
+        <div class="staff-header-title">Return Inspection</div>
+        <div class="staff-back-spacer"></div>
+      </div>
+      <div id="ss-return-body"></div>
+    </div>
+
+    <div class="staff-screen" id="ss-charges">
+      <div class="staff-header">
+        <button class="staff-back" id="staffChargesBackBtn">← Back</button>
+        <div class="staff-header-title">Charges</div>
+        <div class="staff-back-spacer"></div>
+      </div>
+      <div id="ss-charges-body"></div>
+    </div>
+
+    <!-- Staff: Close Rental PIN Confirm -->
+    <div class="staff-screen" id="ss-close">
+      <div class="staff-header">
+        <button class="staff-back" id="staffCloseBackBtn">← Back</button>
+        <div class="staff-header-title">Confirm Close</div>
+        <div class="staff-back-spacer"></div>
+      </div>
+      <h1 style="text-align:left;font-size:1.35rem;margin-bottom:6px">Close Rental</h1>
+      <p class="subtitle" style="text-align:left;margin-bottom:28px">Confirm your PIN to close this rental agreement.</p>
+      <div class="pin-confirm-box">
+        <span class="pin-confirm-label">Staff PIN</span>
+        <input type="password" id="closeConfirmPin" placeholder="••••"
+               autocomplete="off" inputmode="numeric" />
+      </div>
+      <div class="error-msg" id="ss-close-error"></div>
+      <button class="btn btn-danger" id="confirmCloseBtn">Confirm Close Rental</button>
+    </div>
+
+    <!-- Staff: Vehicle Status After Close -->
+    <div class="staff-screen" id="ss-vstatus">
+      <div class="staff-header">
+        <div class="staff-back-spacer"></div>
+        <div class="staff-header-title">Vehicle Status</div>
+        <div class="staff-back-spacer"></div>
+      </div>
+      <h1 style="text-align:left;font-size:1.35rem;margin-bottom:6px">Rental Closed ✓</h1>
+      <p class="subtitle" style="text-align:left;margin-bottom:28px">Set the vehicle's current status in the fleet.</p>
+      <div class="vstatus-grid" id="vstatusGrid"></div>
+      <div class="vstatus-saving" id="vstatusSaving"></div>
+      <div style="flex:1;min-height:20px"></div>
+      <button class="btn btn-primary" id="staffDoneBtn" style="margin-top:20px" disabled>Done</button>
+    </div>
+
+  </div><!-- /.staff-overlay -->
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@1/+esm';
+
+    // ── Supabase ──────────────────────────────────────────────────────────────
+    const SUPABASE_URL  = 'https://hzcatlecvwpqxedrzfog.supabase.co';
+    const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6Y2F0bGVjdndwcXhlZHJ6Zm9nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzQzMTMsImV4cCI6MjA5MzY1MDMxM30.mfqwWQh54hPsRunAVB6RDf_IrvwKmhSYWWJ4sMy0rcw';
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
+
+    // ── App state ─────────────────────────────────────────────────────────────
+    let vehicle   = null;
+    let flowType  = 'pickup'; // 'pickup' or 'return' — detected from Supabase
+    let videoFile = null;
+    let photos    = [];
+    let odoPhoto  = null;
+    let mileage   = '';
+    let fuelLevel = 0;
+
+    // Return flow state
+    let returnMileage            = '';
+    let returnFuelLevel          = 8;
+    let returnOdoPhoto           = null;
+    let returnFuelPhoto          = null;
+    let returnHasDamage          = false;
+    let returnDamagePhotos       = [];
+    let returnDamageVideo        = null;
+    let returnDamageDescription  = '';
+    let returnVehicleLocation    = '';
+
+    const FUEL_LABELS = ['Empty', '⅛', '¼', '⅜', '½', '⅝', '¾', '⅞', 'Full'];
+
+    // ── Screen routing ────────────────────────────────────────────────────────
+    const PICKUP_SCREENS = ['s1','s2','s3','s4','s5','s6','s7'];
+    const RETURN_SCREENS = ['s1','s8','s9','s9b','s10','s10b','s11'];
+    const ALL_SCREENS    = ['s1','s2','s3','s4','s5','s6','s7','s8','s9','s9b','s10','s10b','s11'];
+
+    function goTo(id) {
+      ALL_SCREENS.forEach(s => document.getElementById(s).classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      const chain = flowType === 'return' ? RETURN_SCREENS : PICKUP_SCREENS;
+      const idx   = chain.indexOf(id);
+      const pct   = idx < 0 ? 0 : Math.round((idx / (chain.length - 1)) * 100);
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('staffBtn').style.display = id === 's1' ? '' : 'none';
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 1 — Find Vehicle
+    // ════════════════════════════════════════════════════════════════════════
+    const findBtn         = document.getElementById('findVehicleBtn');
+    const s1Error         = document.getElementById('s1Error');
+    const plateEl         = document.getElementById('plateInput');
+    const licenseEl       = document.getElementById('licenseInput');
+    const resCodeEl       = document.getElementById('resCodeInput');
+    const manualToggleBtn = document.getElementById('manualToggleBtn');
+    const manualLicenseForm = document.getElementById('manualLicenseForm');
+
+    manualToggleBtn.addEventListener('click', () => {
+      const isOpen = manualLicenseForm.style.display !== 'none';
+      manualLicenseForm.style.display = isOpen ? 'none' : 'block';
+      manualToggleBtn.textContent = isOpen ? 'Enter details manually' : 'Hide manual entry';
+    });
+
+    // ── License scan ─────────────────────────────────────────────────────────
+    const scanModal      = document.getElementById('scanModal');
+    const scanModalClose = document.getElementById('scanModalClose');
+    const scanVideo      = document.getElementById('scanVideo');
+    const scanStatus     = document.getElementById('scanStatus');
+    let   scanStream      = null;   // MediaStream from getUserMedia
+    let   scanRafId       = null;   // requestAnimationFrame handle for scan loop
+    let   scannedProvince = '';     // captured from AAMVA scan; no form field for it
+
+    function closeScanModal() {
+      // Stop rAF loop
+      if (scanRafId !== null) { cancelAnimationFrame(scanRafId); scanRafId = null; }
+      // Release camera
+      if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+      scanVideo.srcObject = null;
+      scanModal.classList.remove('open');
+      scanStatus.textContent = 'Scanning…';
+    }
+
+    // Parse an AAMVA-standard PDF417 driver's license barcode string.
+    // Returns { firstName, lastName, dlNumber, dob, expiry, address, postal, province }.
+    function parseAAMVA(raw) {
+      // Build a map of every 3-letter field code → value from the raw string.
+      // AAMVA records are newline-delimited; each line starts with a 3-char code.
+      const fields = {};
+      const lines = raw.split(/[\r\n]+/);
+      for (const line of lines) {
+        if (line.length > 3) {
+          const code = line.slice(0, 3);
+          if (/^[A-Z]{3}$/.test(code)) {
+            fields[code] = line.slice(3).trim();
+          }
+        }
+      }
+
+      // --- Name ---
+      // Prefer separate fields DCS (last) / DAC (first) over combined DAA.
+      let firstName = fields['DAC'] || '';
+      let lastName  = fields['DCS'] || '';
+      if ((!firstName || !lastName) && fields['DAA']) {
+        // DAA format: "LAST,FIRSTNAME,MIDDLE" or "LAST$FIRST$MIDDLE"
+        const parts = fields['DAA'].split(/[,$@]/);
+        if (parts.length >= 2) {
+          if (!lastName)  lastName  = parts[0].trim();
+          if (!firstName) firstName = parts[1].trim();
+        }
+      }
+
+      // --- Dates ---
+      // US AAMVA: MMDDYYYY  |  Canadian AAMVA: YYYYMMDD
+      // Heuristic: if first two digits are > 12 they can't be a month → YYYYMMDD.
+      function aamvaDate(s) {
+        if (!s) return '';
+        const d = s.replace(/\D/g, '');
+        if (d.length !== 8) return s;
+        if (parseInt(d.slice(0, 2), 10) > 12) {
+          // YYYYMMDD (Canadian)
+          return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+        }
+        // MMDDYYYY (US)
+        return `${d.slice(4, 8)}-${d.slice(0, 2)}-${d.slice(2, 4)}`;
+      }
+
+      // --- Postal code ---
+      // US: up to 9 digits (ZIP+4) → keep first 5.
+      // Canada: 6 alphanumeric chars → format as "A1A 1A1".
+      let postal = (fields['DAK'] || '').replace(/\s/g, '');
+      if (/^\d{5,9}$/.test(postal)) {
+        postal = postal.slice(0, 5);
+      } else if (/^[A-Za-z]\d[A-Za-z]\d[A-Za-z]\d$/.test(postal)) {
+        postal = postal.slice(0, 3).toUpperCase() + ' ' + postal.slice(3).toUpperCase();
+      }
+
+      return {
+        firstName,
+        lastName,
+        dlNumber: fields['DAQ'] || '',
+        dob:      aamvaDate(fields['DBB']),
+        expiry:   aamvaDate(fields['DBA']),
+        address:  fields['DAG'] || '',
+        postal,
+        province: fields['DAJ'] || '',
+      };
+    }
+
+    // Populate the manual-entry form from a parsed AAMVA object and reveal the form.
+    function populateFromScan(parsed) {
+      const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+      set('firstNameInput',  parsed.firstName);
+      set('lastNameInput',   parsed.lastName);
+      set('licenseInput',    parsed.dlNumber.toUpperCase());
+      set('dobInput',        parsed.dob);
+      set('dlExpiryInput',   parsed.expiry);
+      set('addressInput',    parsed.address);
+      set('postalCodeInput', parsed.postal);
+      // Store province for saving to Supabase (no form field)
+      scannedProvince = parsed.province || '';
+      // Show the manual form so the customer can review pre-filled values
+      manualLicenseForm.style.display = 'block';
+      manualToggleBtn.textContent = 'Hide manual entry';
+    }
+
+    scanModalClose.addEventListener('click', closeScanModal);
+
+    document.getElementById('scanLicenseBtn').addEventListener('click', async () => {
+      // BarcodeDetector support check
+      if (!('BarcodeDetector' in window)) {
+        scanStatus.textContent = 'Scanning not supported in this browser — please enter details manually';
+        scanModal.classList.add('open');
+        return;
+      }
+
+      // Verify the browser supports pdf417 specifically
+      const supported = await BarcodeDetector.getSupportedFormats().catch(() => []);
+      if (!supported.includes('pdf417')) {
+        scanStatus.textContent = 'Scanning not supported in this browser — please enter details manually';
+        scanModal.classList.add('open');
+        return;
+      }
+
+      scanModal.classList.add('open');
+      scanStatus.textContent = 'Scanning…';
+
+      try {
+        scanStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false,
+        });
+        scanVideo.srcObject = scanStream;
+        await scanVideo.play();
+
+        const detector = new BarcodeDetector({ formats: ['pdf417'] });
+
+        const tick = async () => {
+          // Stop looping if modal was closed
+          if (!scanStream) return;
+
+          try {
+            const barcodes = await detector.detect(scanVideo);
+            if (barcodes.length > 0) {
+              const raw = barcodes[0].rawValue;
+              console.log('Barcode scan result:', raw);
+              closeScanModal();
+              const parsed = parseAAMVA(raw);
+              console.log('Parsed AAMVA fields:', parsed);
+              populateFromScan(parsed);
+              return; // do not schedule next frame
+            }
+          } catch (_) { /* frame not ready yet — continue */ }
+
+          scanRafId = requestAnimationFrame(tick);
+        };
+
+        scanRafId = requestAnimationFrame(tick);
+
+      } catch (e) {
+        closeScanModal();
+        alert('Camera access denied or unavailable: ' + (e.message || e));
+      }
+    });
+
+    function normalizePlate(s) {
+      return String(s || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    }
+
+    plateEl.addEventListener('input', () => {
+      const pos = plateEl.selectionStart;
+      plateEl.value = plateEl.value.toUpperCase();
+      plateEl.setSelectionRange(pos, pos);
+    });
+
+    licenseEl.addEventListener('input', () => {
+      const pos = licenseEl.selectionStart;
+      licenseEl.value = licenseEl.value.toUpperCase();
+      licenseEl.setSelectionRange(pos, pos);
+    });
+
+    resCodeEl.addEventListener('input', () => {
+      // Count raw (non-space) chars before the cursor so we can restore position after formatting
+      const rawBeforeCursor = resCodeEl.value.slice(0, resCodeEl.selectionStart).replace(/[^A-Za-z0-9]/g, '').length;
+
+      // Strip non-alphanumeric, uppercase, cap at 9 raw chars, then insert spaces: ABC 123 456
+      const raw = resCodeEl.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 9);
+      let formatted = raw;
+      if (raw.length > 6) formatted = raw.slice(0, 3) + ' ' + raw.slice(3, 6) + ' ' + raw.slice(6);
+      else if (raw.length > 3) formatted = raw.slice(0, 3) + ' ' + raw.slice(3);
+      resCodeEl.value = formatted;
+
+      // Restore cursor: walk formatted string counting raw chars until we reach rawBeforeCursor
+      let rawCount = 0, newPos = formatted.length;
+      for (let i = 0; i < formatted.length; i++) {
+        if (rawCount === rawBeforeCursor) { newPos = i; break; }
+        if (/[A-Z0-9]/.test(formatted[i])) rawCount++;
+      }
+      resCodeEl.setSelectionRange(newPos, newPos);
+    });
+
+    plateEl.addEventListener('keydown',   e => { if (e.key === 'Enter') findBtn.click(); });
+    licenseEl.addEventListener('keydown', e => { if (e.key === 'Enter') findBtn.click(); });
+    resCodeEl.addEventListener('keydown', e => { if (e.key === 'Enter') findBtn.click(); });
+
+    findBtn.addEventListener('click', async () => {
+      const rawResCode  = resCodeEl.value.replace(/\s/g, '').toUpperCase();
+      const rawFirstName = document.getElementById('firstNameInput').value.trim();
+      const rawLastName  = document.getElementById('lastNameInput').value.trim();
+      const rawPlate    = plateEl.value.trim().toUpperCase();
+      s1Error.textContent = '';
+
+      if (!rawResCode)                    { s1Error.textContent = 'Please enter your reservation code.'; return; }
+      if (!rawFirstName || !rawLastName)  { s1Error.textContent = 'Please enter your first and last name.'; return; }
+      if (!rawPlate)                      { s1Error.textContent = 'Please enter the license plate number.'; return; }
+
+      findBtn.disabled = true;
+      findBtn.innerHTML = '<span class="spinner"></span>Searching…';
+
+      let result = null;
+      try {
+        result = await lookupReservation(rawResCode, rawFirstName, rawLastName, rawPlate);
+      } catch (e) {
+        result = null;
+      }
+
+      findBtn.disabled = false;
+      findBtn.textContent = 'Start Rental Process';
+
+      if (!result) {
+        s1Error.textContent = 'Unable to connect. Please try again.';
+        return;
+      }
+      if (result.error) {
+        s1Error.textContent = result.error;
+        return;
+      }
+
+      // Save scanned / manually entered license data to the reservation.
+      // Only include fields that have a value so we never overwrite existing
+      // data with blanks if the customer only filled in some fields manually.
+      const licenseUpdate = {};
+      const dlVal      = document.getElementById('licenseInput').value.trim().toUpperCase();
+      const dobVal     = document.getElementById('dobInput').value.trim();
+      const expiryVal  = document.getElementById('dlExpiryInput').value.trim();
+      const addressVal = document.getElementById('addressInput').value.trim();
+      const postalVal  = document.getElementById('postalCodeInput').value.trim();
+      if (dlVal)            licenseUpdate.licenseNumber = dlVal;
+      if (dobVal)           licenseUpdate.dob           = dobVal;
+      if (expiryVal)        licenseUpdate.dlExpiry      = expiryVal;
+      if (addressVal)       licenseUpdate.address       = addressVal;
+      if (postalVal)        licenseUpdate.postalCode    = postalVal;
+      if (scannedProvince)  licenseUpdate.province      = scannedProvince;
+
+      if (Object.keys(licenseUpdate).length > 0) {
+        const { error: saveErr } = await supabase
+          .from('reservations')
+          .update(licenseUpdate)
+          .eq('resCode', result.resolvedResCode);
+        if (saveErr) {
+          console.warn('License data save FAILED:', saveErr.message, licenseUpdate);
+        } else {
+          console.log('License data saved to reservation:', result.resolvedResCode, licenseUpdate);
+        }
+      }
+
+      vehicle  = result;
+      flowType = result.detectedFlow || 'pickup';
+
+      if (flowType === 'return') {
+        // Reset return flow state
+        returnMileage           = '';
+        returnFuelLevel         = 8;
+        returnOdoPhoto          = null;
+        returnFuelPhoto         = null;
+        returnHasDamage         = false;
+        returnDamagePhotos      = [];
+        returnDamageVideo       = null;
+        returnDamageDescription = '';
+        returnVehicleLocation   = '';
+        returnPhotoObjectUrls   = [];
+        // Reset return screen UI
+        document.getElementById('returnMileageInput').value    = '';
+        document.getElementById('returnOdoPreview').style.display  = 'none';
+        document.getElementById('returnOdoPreview').src            = '';
+        const rfr = document.getElementById('returnFuelRange');
+        rfr.value = '8';
+        document.getElementById('returnFuelValueLabel').textContent    = FUEL_LABELS[8];
+        document.getElementById('returnFuelPreview').style.display     = 'none';
+        document.getElementById('returnFuelPreview').src               = '';
+        document.getElementById('damageFields').style.display          = 'none';
+        document.getElementById('s10Submit').style.display             = 'none';
+        document.getElementById('returnDamageDesc').value              = '';
+        document.getElementById('returnPhotoGrid').innerHTML            = '';
+        document.getElementById('returnDamageVideoPreview').style.display = 'none';
+        document.getElementById('returnDamageVideoPreview').src         = '';
+        document.getElementById('s10Error').textContent                = '';
+        document.getElementById('vehicleLocationInput').value          = '';
+        document.getElementById('s10bError').textContent               = '';
+        goTo('s8');
+      } else {
+        configureFlow();
+        buildDamageScreen();
+        goTo('s2');
+      }
+    });
+
+    async function lookupReservation(resCode, firstName, lastName, plate) {
+      const normName = (s) => String(s || '').trim().toLowerCase();
+
+      // Format resCode to stored format: strip non-alphanumeric, uppercase,
+      // then insert spaces after 3rd and 6th characters (e.g. EAM224575 → EAM 224 575)
+      const rawCode = String(resCode || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      resCode = rawCode.length >= 7
+        ? `${rawCode.slice(0, 3)} ${rawCode.slice(3, 6)} ${rawCode.slice(6)}`
+        : rawCode;
+
+      console.log('--- lookupReservation ---');
+      console.log('Input resCode (entered):', resCode);
+      console.log('Input firstName (entered):', firstName);
+      console.log('Input lastName (entered):', lastName);
+      console.log('Input plate (entered):', plate);
+
+      // Step 1: reservation code must exist
+      const { data: resData, error: resErr } = await supabase
+        .from('reservations')
+        .select('*')
+        .eq('resCode', resCode)
+        .maybeSingle();
+
+      console.log('Step 1 — resCode lookup:', { resCode, resErr, resData });
+      if (resErr || !resData) {
+        console.log('Step 1 FAILED — no matching reservation found for resCode:', resCode);
+        return { error: 'Reservation code not found. Please check and try again.' };
+      }
+
+      // Step 2: first name and last name must match the reservation on file
+      const enteredFirst = normName(firstName);
+      const enteredLast  = normName(lastName);
+      const storedFirst  = normName(resData.firstName);
+      const storedLast   = normName(resData.lastName);
+      console.log('Step 2 — name comparison:');
+      console.log('  Entered first:', enteredFirst, '| On file:', storedFirst, '| Match:', storedFirst === enteredFirst);
+      console.log('  Entered last:', enteredLast,  '| On file:', storedLast,  '| Match:', storedLast  === enteredLast);
+      if (!storedFirst || !storedLast || storedFirst !== enteredFirst || storedLast !== enteredLast) {
+        console.log('Step 2 FAILED — name mismatch');
+        return { error: 'Name does not match this reservation. Please check and try again.' };
+      }
+
+      // Step 3: plate must exist in the fleet
+      const { data: fleetData } = await supabase
+        .from('fleet')
+        .select('*');
+      const matchedVehicle = fleetData?.find((v) => normalizePlate(v.plate) === normalizePlate(plate));
+      console.log('Step 3 — plate comparison:');
+      console.log('  Entered (raw):', plate);
+      console.log('  Entered (normalized):', normalizePlate(plate));
+      console.log('  Fleet plates (normalized):', fleetData?.map((v) => normalizePlate(v.plate)));
+      console.log('  Match found:', !!matchedVehicle, matchedVehicle ? '→ ' + matchedVehicle.plate : '');
+      if (!matchedVehicle) {
+        console.log('Step 3 FAILED — plate not found in fleet');
+        return { error: 'License plate not found in our fleet. Please check and try again.' };
+      }
+
+      // All three validated — check rental_agreements for current status to determine flow
+      const { data: raRow } = await supabase
+        .from('rental_agreements')
+        .select('id, rentalAgreementStatus')
+        .eq('resCode', resCode)
+        .maybeSingle();
+      const raStatus = raRow?.rentalAgreementStatus || '';
+      const raId     = raRow?.id || null;
+
+      // If an RA exists but is NOT open_rental_agreement, block — can't pick up or return
+      if (raStatus && raStatus !== 'open_rental_agreement') {
+        console.log('Blocked — RA status is:', raStatus);
+        return { error: 'This reservation has already been processed and cannot be modified.' };
+      }
+
+      const detectedFlow = raStatus === 'open_rental_agreement' ? 'return' : 'pickup';
+      console.log('All steps passed — detectedFlow:', detectedFlow, '| resolvedResCode:', resCode, '| raId:', raId);
+
+      return { ...matchedVehicle, detectedFlow, resolvedResCode: resCode, raId };
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Flow configuration — called after flowType is set
+    // ════════════════════════════════════════════════════════════════════════
+    function configureFlow() {
+      const isReturn = flowType === 'return';
+
+      // Screen 2 — info box text
+      document.getElementById('s2InfoBox').innerHTML = isReturn
+        ? 'This is the condition your vehicle was in at pickup.'
+        : 'The following damage has been documented on this vehicle.<br />You are not responsible for it.';
+
+      // Screen 3 — subtitle and skip button
+      document.getElementById('s3Subtitle').textContent = isReturn
+        ? 'Record a video walking around the entire outside of the vehicle showing its current condition.'
+        : 'Record a short video walking around the entire outside of the vehicle, covering all four sides.';
+      document.getElementById('s3Skip').style.display = isReturn ? 'none' : '';
+
+      // Screen 4 — subtitle
+      document.getElementById('s4Subtitle').textContent = isReturn
+        ? 'Flag any areas of concern.'
+        : 'See any damage not listed? Photograph it now to protect yourself.';
+
+      // Screen 6 — signature subtitle
+      document.getElementById('s6Subtitle').textContent = isReturn
+        ? 'By signing below you confirm you are returning the vehicle in the condition shown.'
+        : 'By signing below you confirm you have inspected the vehicle and accept it in its current documented condition.';
+
+      // Screen 7 — done message
+      document.getElementById('s7Title').textContent   = isReturn ? 'Thank you!' : 'You’re Good to Go!';
+      document.getElementById('s7Subtitle').textContent = isReturn
+        ? 'Thank you for returning your vehicle. A team member will complete your rental shortly.'
+        : 'Your inspection is complete and on file. Enjoy your rental.';
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 2 — Pre-Existing Damage
+    // ════════════════════════════════════════════════════════════════════════
+    function buildDamageScreen() {
+      const v = vehicle || { plate: plateEl.value.trim().toUpperCase() || '—', make: '', model: '—', vehicleClass: '—', winterTires: 'No' };
+
+      document.getElementById('vehicleCard').innerHTML = `
+        <div class="v-plate">${v.plate}</div>
+        <div class="v-detail">${[v.year, v.make, v.model].filter(Boolean).join(' ')} &middot; ${v.vehicleClass}</div>
+        ${v.winterTires === 'Yes'
+          ? '<div class="v-winter">❄ Winter Tires Installed</div>'
+          : ''}
+      `;
+
+      const damageList  = document.getElementById('damageList');
+      const noDamageMsg = document.getElementById('noDamageMsg');
+      const damage      = Array.isArray(v.damage) ? v.damage : [];
+
+      if (damage.length === 0) {
+        damageList.innerHTML     = '';
+        damageList.style.display = 'none';
+        noDamageMsg.style.display = 'block';
+      } else {
+        damageList.innerHTML     = damage.map(d => `<li>${d}</li>`).join('');
+        damageList.style.display = 'block';
+        noDamageMsg.style.display = 'none';
+      }
+    }
+
+    document.getElementById('s2Btn').addEventListener('click', () => goTo('s3'));
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 3 — Walkaround Video
+    // ════════════════════════════════════════════════════════════════════════
+    const recordInput  = document.getElementById('recordVideoInput');
+    const uploadInput  = document.getElementById('uploadVideoInput');
+    const videoPreview = document.getElementById('videoPreview');
+
+    document.getElementById('recordVideoBtn').addEventListener('click', () => recordInput.click());
+    document.getElementById('uploadVideoBtn').addEventListener('click', () => uploadInput.click());
+
+    function handleVideo(file) {
+      if (!file) return;
+      videoFile = file;
+      videoPreview.src = URL.createObjectURL(file);
+      videoPreview.style.display = 'block';
+      document.getElementById('s3Skip').style.display = 'none';
+      document.getElementById('s3Next').style.display = 'block';
+    }
+
+    recordInput.addEventListener('change', () => handleVideo(recordInput.files[0]));
+    uploadInput.addEventListener('change', () => handleVideo(uploadInput.files[0]));
+
+    document.getElementById('s3Skip').addEventListener('click', () => goTo('s4'));
+    document.getElementById('s3Next').addEventListener('click', () => goTo('s4'));
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 4 — Photos of Concern
+    // ════════════════════════════════════════════════════════════════════════
+    const photoInput = document.getElementById('photoInput');
+    const photoGrid  = document.getElementById('photoGrid');
+
+    document.getElementById('addPhotoBtn').addEventListener('click', () => photoInput.click());
+
+    photoInput.addEventListener('change', () => {
+      photos = [...photos, ...Array.from(photoInput.files)];
+      renderPhotoGrid();
+      photoInput.value = ''; // allow re-selecting same file
+    });
+
+    // Lightbox
+    const lightbox      = document.getElementById('photoLightbox');
+    const lightboxImg   = document.getElementById('photoLightboxImg');
+    const lightboxClose = document.getElementById('photoLightboxClose');
+
+    function openLightbox(objectUrl) {
+      lightboxImg.src = objectUrl;
+      lightbox.classList.add('open');
+    }
+    function closeLightbox() {
+      lightbox.classList.remove('open');
+      lightboxImg.src = '';
+    }
+    lightboxClose.addEventListener('click', closeLightbox);
+    lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox(); });
+
+    // Keep object URLs so they can be reopened after initial creation
+    let photoObjectUrls = [];
+
+    function renderPhotoGrid() {
+      photoGrid.innerHTML = '';
+      photoObjectUrls = photos.map(f => URL.createObjectURL(f));
+      photoObjectUrls.forEach((url, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'photo-link';
+        btn.textContent = `View Photo ${i + 1}`;
+        btn.addEventListener('click', () => openLightbox(url));
+        photoGrid.appendChild(btn);
+      });
+      document.getElementById('s4Next').style.display = photos.length > 0 ? '' : 'none';
+    }
+
+    document.getElementById('s4Skip').addEventListener('click', () => goTo('s5'));
+    document.getElementById('s4Next').addEventListener('click', () => goTo('s5'));
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 5 — Odometer & Fuel
+    // ════════════════════════════════════════════════════════════════════════
+    const odoPhotoInput = document.getElementById('odoPhotoInput');
+    const odoPreview    = document.getElementById('odoPreview');
+    const fuelRange     = document.getElementById('fuelRange');
+    const fuelLabel     = document.getElementById('fuelValueLabel');
+
+    document.getElementById('takeOdoBtn').addEventListener('click', () => odoPhotoInput.click());
+
+    odoPhotoInput.addEventListener('change', () => {
+      const f = odoPhotoInput.files[0];
+      if (!f) return;
+      odoPhoto = f;
+      odoPreview.src = URL.createObjectURL(f);
+      odoPreview.style.display = 'block';
+    });
+
+    fuelRange.addEventListener('input', () => {
+      fuelLevel = parseInt(fuelRange.value);
+      fuelLabel.textContent = FUEL_LABELS[fuelLevel];
+    });
+
+    document.getElementById('s5Next').addEventListener('click', () => {
+      const mileageVal = document.getElementById('mileageInput').value.trim();
+      const s5Error    = document.getElementById('s5Error');
+      if (!mileageVal) {
+        s5Error.textContent = 'Please enter the odometer reading before continuing.';
+        document.getElementById('mileageInput').focus();
+        return;
+      }
+      s5Error.textContent = '';
+      mileage   = mileageVal;
+      fuelLevel = parseInt(fuelRange.value);
+      sizeCanvas();
+      goTo('s6');
+    });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 6 — Signature
+    // ════════════════════════════════════════════════════════════════════════
+    const canvas         = document.getElementById('sigCanvas');
+    const ctx            = canvas.getContext('2d');
+    const sigPlaceholder = document.getElementById('sigPlaceholder');
+    let drawing  = false;
+    let hasSig   = false;
+
+    function sizeCanvas() {
+      const wrap = canvas.parentElement;
+      canvas.width = wrap.clientWidth || 400;
+    }
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const src  = e.touches ? e.touches[0] : e;
+      return {
+        x: (src.clientX - rect.left) * (canvas.width  / rect.width),
+        y: (src.clientY - rect.top)  * (canvas.height / rect.height),
+      };
+    }
+
+    canvas.addEventListener('mousedown',  e => { e.preventDefault(); drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); });
+    canvas.addEventListener('mousemove',  e => { e.preventDefault(); if (!drawing) return; hasSig = true; sigPlaceholder.style.display = 'none'; styleSig(); const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); });
+    canvas.addEventListener('mouseup',    e => { e.preventDefault(); drawing = false; });
+    canvas.addEventListener('mouseleave', e => { drawing = false; });
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }, { passive: false });
+    canvas.addEventListener('touchmove',  e => { e.preventDefault(); if (!drawing) return; hasSig = true; sigPlaceholder.style.display = 'none'; styleSig(); const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); }, { passive: false });
+    canvas.addEventListener('touchend',   e => { e.preventDefault(); drawing = false; }, { passive: false });
+
+    function styleSig() {
+      ctx.strokeStyle = '#1F1E1D';
+      ctx.lineWidth   = 2.5;
+      ctx.lineCap     = 'round';
+      ctx.lineJoin    = 'round';
+    }
+
+    document.getElementById('clearSigBtn').addEventListener('click', () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      hasSig = false;
+      sigPlaceholder.style.display = '';
+    });
+
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.addEventListener('click', async () => {
+      if (!hasSig) {
+        alert('Please sign before submitting.');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner"></span>Submitting…';
+
+      await submitInspection();
+
+      buildDoneScreen();
+      goTo('s7');
+    });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Submit — write inspection result to Supabase
+    // ════════════════════════════════════════════════════════════════════════
+    async function submitInspection() {
+      // Reservation code resolved automatically from backend during lookup
+      const resolvedResCode = vehicle?.resolvedResCode || null;
+
+      try {
+        if (resolvedResCode) {
+          if (flowType === 'return') {
+            // ── Return flow: mark rental agreement as close_pending ───────────
+            await supabase
+              .from('rental_agreements')
+              .update({ rentalAgreementStatus: 'close_pending' })
+              .eq('resCode', resolvedResCode);
+            // Update fleet vehicle status to Ready Returns
+            if (vehicle?.id) {
+              await supabase.from('fleet').update({ status: 'Ready Returns' }).eq('id', vehicle.id);
+            } else if (vehicle?.plate) {
+              await supabase.from('fleet').update({ status: 'Ready Returns' }).eq('plate', vehicle.plate);
+            }
+          } else {
+            // ── Pickup flow: fetch reservation details then insert a full rental agreement ──
+
+            // Re-fetch the reservation so we have customer/booking data at submit time
+            let resData = null;
+            try {
+              const { data } = await supabase
+                .from('reservations')
+                .select('*')
+                .eq('resCode', resolvedResCode)
+                .maybeSingle();
+              resData = data;
+            } catch (_) {}
+
+            const fuelStr = FUEL_LABELS[fuelLevel] || 'Full';
+
+            const raInsertPayload = {
+              resCode:               resolvedResCode,
+              rentalAgreementStatus: 'open_rental_agreement',
+              customer:              resData?.customer   || null,
+              phone:                 resData?.phone      || null,
+              email:                 resData?.email      || null,
+              pickupDate:            resData?.date       || null,
+              returnDate:            resData?.returnDate || null,
+              location:              resData?.location   || null,
+              source:                resData?.source     || null,
+              dailyRate:             resData?.dailyRate  || null,
+              vehicleClass:          resData?.vehicleClass || vehicle?.vehicleClass || null,
+              winterTires:           resData?.winterTires  || vehicle?.winterTires  || null,
+              plate:                 vehicle?.plate || null,
+              make:                  vehicle?.make  || null,
+              model:                 vehicle?.model || null,
+              mileage:               mileage ? parseInt(mileage, 10) : null,
+              fuelAtPickup:          fuelStr,
+              photoCount:            photos.length,
+              hasVideo:              !!videoFile,
+              inspectedAt:           new Date().toISOString(),
+            };
+            console.log('rental_agreements insert payload:', raInsertPayload);
+
+            const raInsertRes = await supabase
+              .from('rental_agreements')
+              .insert(raInsertPayload);
+            console.log('rental_agreements insert response:', raInsertRes);
+
+            // Update fleet vehicle status to On Rent
+            if (vehicle?.id) {
+              await supabase.from('fleet').update({ status: 'On Rent' }).eq('id', vehicle.id);
+            } else if (vehicle?.plate) {
+              await supabase.from('fleet').update({ status: 'On Rent' }).eq('plate', vehicle.plate);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Supabase submit failed (offline?):', e);
+      }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 7 — Done
+    // ════════════════════════════════════════════════════════════════════════
+    function buildDoneScreen() {
+      const v          = vehicle;
+      const fuelStr    = FUEL_LABELS[fuelLevel] || 'Full';
+      const dateStr    = new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+
+      const rows = [
+        ['Plate',    v.plate],
+        ['Vehicle',  `${v.make} ${v.model}`],
+        ['Class',    v.vehicleClass],
+        ['Date',     dateStr],
+        mileage ? ['Odometer', `${parseInt(mileage).toLocaleString('en-CA')} km`] : null,
+        ['Fuel',     fuelStr],
+        ['Status', flowType === 'return'
+          ? '<span style="color:#f59e0b;font-weight:700">Close Pending</span>'
+          : '<span style="color:#22c55e;font-weight:700">Inspection Complete</span>'],
+      ].filter(Boolean);
+
+      document.getElementById('doneSummary').innerHTML = rows.map(([label, value]) => `
+        <div class="done-row">
+          <span class="dr-label">${label}</span>
+          <span class="dr-value">${value}</span>
+        </div>
+      `).join('');
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Pickup back navigation
+    // ════════════════════════════════════════════════════════════════════════
+    document.getElementById('s2Back').addEventListener('click', () => goTo('s1'));
+    document.getElementById('s3Back').addEventListener('click', () => goTo('s2'));
+    document.getElementById('s4Back').addEventListener('click', () => goTo('s3'));
+    document.getElementById('s5Back').addEventListener('click', () => goTo('s4'));
+    document.getElementById('s6Back').addEventListener('click', () => goTo('s5'));
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 8 — Return · Step 1 of 5 · Odometer
+    // ════════════════════════════════════════════════════════════════════════
+    document.getElementById('s8Back').addEventListener('click', () => goTo('s1'));
+
+    const returnOdoPhotoInput = document.getElementById('returnOdoPhotoInput');
+    document.getElementById('takeReturnOdoPhotoBtn').addEventListener('click', () => returnOdoPhotoInput.click());
+    returnOdoPhotoInput.addEventListener('change', () => {
+      const f = returnOdoPhotoInput.files[0];
+      if (!f) return;
+      returnOdoPhoto = f;
+      const prev = document.getElementById('returnOdoPreview');
+      prev.src = URL.createObjectURL(f);
+      prev.style.display = 'block';
+      returnOdoPhotoInput.value = '';
+    });
+
+    document.getElementById('s8Next').addEventListener('click', () => {
+      const val = document.getElementById('returnMileageInput').value.trim();
+      if (!val || isNaN(parseInt(val, 10))) {
+        document.getElementById('s8Error').textContent = 'Please enter the current odometer reading.';
+        return;
+      }
+      document.getElementById('s8Error').textContent = '';
+      returnMileage = val;
+      goTo('s9');
+    });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 9 — Return · Step 2 of 5 · Fuel Level
+    // ════════════════════════════════════════════════════════════════════════
+    document.getElementById('s9Back').addEventListener('click', () => goTo('s8'));
+
+    const returnFuelRange = document.getElementById('returnFuelRange');
+    const returnFuelLabel = document.getElementById('returnFuelValueLabel');
+
+    returnFuelRange.addEventListener('input', () => {
+      returnFuelLevel = parseInt(returnFuelRange.value);
+      returnFuelLabel.textContent = FUEL_LABELS[returnFuelLevel];
+    });
+
+    const returnFuelPhotoInput = document.getElementById('returnFuelPhotoInput');
+    document.getElementById('takeReturnFuelPhotoBtn').addEventListener('click', () => returnFuelPhotoInput.click());
+    returnFuelPhotoInput.addEventListener('change', () => {
+      const f = returnFuelPhotoInput.files[0];
+      if (!f) return;
+      returnFuelPhoto = f;
+      const prev = document.getElementById('returnFuelPreview');
+      prev.src = URL.createObjectURL(f);
+      prev.style.display = 'block';
+      returnFuelPhotoInput.value = '';
+    });
+
+    document.getElementById('s9Next').addEventListener('click', () => {
+      returnFuelLevel = parseInt(returnFuelRange.value);
+      buildReturnPrevDamageScreen();
+      goTo('s9b');
+    });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 9b — Return · Step 3 of 5 · Previous Damage on Record
+    // ════════════════════════════════════════════════════════════════════════
+    function buildReturnPrevDamageScreen() {
+      const damage      = Array.isArray(vehicle?.damage) ? vehicle.damage : [];
+      const listEl      = document.getElementById('returnPrevDamageList');
+      const noDamageEl  = document.getElementById('returnNoDamageMsg');
+      if (damage.length === 0) {
+        listEl.style.display     = 'none';
+        noDamageEl.style.display = 'block';
+      } else {
+        listEl.innerHTML         = damage.map(d => `<li>${d}</li>`).join('');
+        listEl.style.display     = 'block';
+        noDamageEl.style.display = 'none';
+      }
+    }
+
+    document.getElementById('s9bBack').addEventListener('click', () => goTo('s9'));
+    document.getElementById('s9bNext').addEventListener('click', () => {
+      // Reset damage choice state when (re-)entering s10
+      returnHasDamage = false;
+      document.getElementById('damageFields').style.display = 'none';
+      document.getElementById('s10Submit').style.display    = 'none';
+      document.getElementById('s10Error').textContent       = '';
+      goTo('s10');
+    });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 10 — Return · Step 4 of 5 · Damage Check
+    // ════════════════════════════════════════════════════════════════════════
+    document.getElementById('s10Back').addEventListener('click', () => goTo('s9b'));
+
+    document.getElementById('damageNoBtn').addEventListener('click', () => {
+      returnHasDamage         = false;
+      returnDamagePhotos      = [];
+      returnDamageVideo       = null;
+      returnDamageDescription = '';
+      document.getElementById('s10Error').textContent = '';
+      goTo('s10b');
+    });
+
+    document.getElementById('damageYesBtn').addEventListener('click', () => {
+      returnHasDamage = true;
+      document.getElementById('damageFields').style.display = 'block';
+      document.getElementById('s10Submit').style.display    = 'block';
+      document.getElementById('s10Error').textContent       = '';
+    });
+
+    // Return damage photo upload
+    let returnPhotoObjectUrls = [];
+    const returnDamagePhotoInput = document.getElementById('returnDamagePhotoInput');
+    const returnPhotoGrid        = document.getElementById('returnPhotoGrid');
+
+    document.getElementById('addReturnPhotoBtn').addEventListener('click', () => returnDamagePhotoInput.click());
+
+    returnDamagePhotoInput.addEventListener('change', () => {
+      returnDamagePhotos = [...returnDamagePhotos, ...Array.from(returnDamagePhotoInput.files)];
+      returnPhotoObjectUrls = returnDamagePhotos.map(f => URL.createObjectURL(f));
+      returnPhotoGrid.innerHTML = '';
+      returnPhotoObjectUrls.forEach((url, i) => {
+        const btn = document.createElement('button');
+        btn.className   = 'photo-link';
+        btn.textContent = `View Photo ${i + 1}`;
+        btn.addEventListener('click', () => openLightbox(url));
+        returnPhotoGrid.appendChild(btn);
+      });
+      returnDamagePhotoInput.value = '';
+    });
+
+    // Return damage video upload
+    const returnDamageVideoInput = document.getElementById('returnDamageVideoInput');
+    document.getElementById('addReturnVideoBtn').addEventListener('click', () => returnDamageVideoInput.click());
+    returnDamageVideoInput.addEventListener('change', () => {
+      const f = returnDamageVideoInput.files[0];
+      if (!f) return;
+      returnDamageVideo = f;
+      const prev = document.getElementById('returnDamageVideoPreview');
+      prev.src = URL.createObjectURL(f);
+      prev.style.display = 'block';
+      returnDamageVideoInput.value = '';
+    });
+
+    document.getElementById('s10Submit').addEventListener('click', () => {
+      returnDamageDescription = document.getElementById('returnDamageDesc').value.trim();
+      if (!returnDamageDescription) {
+        document.getElementById('s10Error').textContent = 'Please describe the damage before submitting.';
+        return;
+      }
+      document.getElementById('s10Error').textContent = '';
+      goTo('s10b');
+    });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 10b — Return · Step 5 of 6 · Vehicle Location
+    // ════════════════════════════════════════════════════════════════════════
+    document.getElementById('s10bBack').addEventListener('click', () => goTo('s10'));
+
+    document.getElementById('s10bSubmit').addEventListener('click', async () => {
+      returnVehicleLocation = document.getElementById('vehicleLocationInput').value.trim();
+      document.getElementById('s10bError').textContent = '';
+      await submitReturn();
+    });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // submitReturn — write return data to Supabase then go to s11
+    // ════════════════════════════════════════════════════════════════════════
+    async function submitReturn() {
+      const resolvedResCode = vehicle?.resolvedResCode || null;
+      const raId            = vehicle?.raId            || null;
+
+      // Disable the location submit button while saving
+      const locBtn = document.getElementById('s10bSubmit');
+      locBtn.disabled = true;
+      locBtn.innerHTML = '<span class="spinner"></span>Submitting…';
+
+      try {
+        if (resolvedResCode || raId) {
+          const fuelStr = FUEL_LABELS[returnFuelLevel] || 'Full';
+
+          const raUpdate = {
+            rentalAgreementStatus:   'close_pending',
+            returnedAt:              new Date().toISOString(),
+            returnMileage:           returnMileage ? parseInt(returnMileage, 10) : null,
+            returnFuelLevel:         fuelStr,
+            returnOdoPhotoCount:     returnOdoPhoto  ? 1 : 0,
+            returnFuelPhotoCount:    returnFuelPhoto ? 1 : 0,
+            returnHasDamage:         returnHasDamage,
+            returnDamageDescription: returnHasDamage ? returnDamageDescription : null,
+            returnPhotoCount:        returnHasDamage ? returnDamagePhotos.length : 0,
+            returnVideoCount:        returnHasDamage && returnDamageVideo ? 1 : 0,
+            returnVehicleLocation:   returnVehicleLocation || null,
+          };
+          console.log('submitReturn — RA update payload:', raUpdate);
+
+          // Prefer filtering by primary key (id) for reliability; fall back to resCode
+          let raQuery = supabase.from('rental_agreements').update(raUpdate);
+          if (raId) {
+            raQuery = raQuery.eq('id', raId);
+          } else {
+            raQuery = raQuery.eq('resCode', resolvedResCode);
+          }
+          const raRes = await raQuery;
+          console.log('submitReturn — RA update response:', raRes);
+          if (raRes.error) {
+            console.warn('submitReturn — RA update FAILED:', raRes.error);
+          }
+
+          // fleet vehicle → Ready Returns (prefer fleet id over plate)
+          if (vehicle?.id) {
+            const fleetRes = await supabase.from('fleet').update({ status: 'Ready Returns' }).eq('id', vehicle.id);
+            console.log('submitReturn — fleet update (by id):', fleetRes);
+            if (fleetRes.error) console.warn('submitReturn — fleet update FAILED:', fleetRes.error);
+          } else if (vehicle?.plate) {
+            const fleetRes = await supabase.from('fleet').update({ status: 'Ready Returns' }).eq('plate', vehicle.plate);
+            console.log('submitReturn — fleet update (by plate):', fleetRes);
+            if (fleetRes.error) console.warn('submitReturn — fleet update FAILED:', fleetRes.error);
+          }
+        }
+      } catch (e) {
+        console.warn('submitReturn failed (offline?):', e);
+      }
+
+      locBtn.disabled = false;
+      locBtn.textContent = 'Submit Return';
+      goTo('s11');
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 7 — Pickup: Done button
+    // ════════════════════════════════════════════════════════════════════════
+    document.getElementById('s7DoneBtn').addEventListener('click', () => {
+      document.getElementById('resCodeInput').value  = '';
+      document.getElementById('licenseInput').value  = '';
+      document.getElementById('plateInput').value    = '';
+      document.getElementById('s1Error').textContent = '';
+      ['firstNameInput','lastNameInput','dobInput','dlExpiryInput','addressInput','postalCodeInput'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      manualLicenseForm.style.display = 'none';
+      manualToggleBtn.textContent = 'Enter details manually';
+      scannedProvince = '';
+      findBtn.disabled    = false;
+      findBtn.textContent = 'Start Rental Process';
+      vehicle   = null;
+      flowType  = 'pickup';
+      goTo('s1');
+    });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 11 — Return: Done button
+    // ════════════════════════════════════════════════════════════════════════
+    document.getElementById('s11DoneBtn').addEventListener('click', () => {
+      // Reset lookup form so the next customer starts fresh
+      document.getElementById('resCodeInput').value  = '';
+      document.getElementById('licenseInput').value  = '';
+      document.getElementById('plateInput').value    = '';
+      document.getElementById('s1Error').textContent = '';
+      // Reset manual license form fields and collapse it
+      ['firstNameInput','lastNameInput','dobInput','dlExpiryInput','addressInput','postalCodeInput'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      manualLicenseForm.style.display = 'none';
+      manualToggleBtn.textContent = 'Enter details manually';
+      scannedProvince = '';
+      findBtn.disabled    = false;
+      findBtn.textContent = 'Start Rental Process';
+      vehicle   = null;
+      flowType  = 'pickup';
+      goTo('s1');
+    });
+
+    // ── Initialise ────────────────────────────────────────────────────────────
+    // Size canvas on load in case user goes straight to s6 somehow
+    window.addEventListener('resize', () => {
+      if (document.getElementById('s6').classList.contains('active')) sizeCanvas();
+    });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Staff Portal
+    // ════════════════════════════════════════════════════════════════════════
+
+    // ── Staff state ──────────────────────────────────────────────────────────
+    let staffUser          = null;  // authenticated user object from Supabase
+    let staffSearchedPlate = '';
+    let staffRAs           = [];    // rental agreements found for searched plate
+    let staffSelectedRA    = null;  // RA open in detail view
+    let staffFleetVehicle  = null;  // fleet record for the selected RA's plate
+
+    // Return inspection state
+    let staffReturnFuelLevel     = 0;
+    let staffReturnHasDamage     = null;   // null = not yet chosen, true/false after choice
+    let staffReturnDamagePhotos  = [];     // File objects
+    let staffReturnDamageObjUrls = [];     // object URLs for previews
+    let staffReturnDamageDesc    = '';
+
+    // Charges page cache — loaded from rental_agreements.lineItems / .payments
+    let staffLineItems       = [];   // editable line items
+    let staffChargesPayments = [];   // payment records (display only)
+    let staffChargesDR       = 0;    // dailyRate
+    let staffChargesSrc      = '';   // source string
+    let staffChargesRaId     = null; // RA id we loaded these for
+
+    const STAFF_SCREENS = ['ss-login','ss-plate','ss-list','ss-detail','ss-return','ss-charges','ss-close','ss-vstatus'];
+
+    function openStaffPortal() {
+      document.getElementById('staffOverlay').classList.add('open');
+      document.getElementById('staffUsername').value  = '';
+      document.getElementById('staffPassword').value = '';
+      document.getElementById('ss-login-error').textContent = '';
+      goStaff('ss-login');
+    }
+
+    function closeStaffPortal() {
+      document.getElementById('staffOverlay').classList.remove('open');
+    }
+
+    function goStaff(id) {
+      STAFF_SCREENS.forEach(s => document.getElementById(s).classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      document.getElementById('staffOverlay').scrollTo({ top: 0, behavior: 'instant' });
+    }
+
+    document.getElementById('staffBtn').addEventListener('click', openStaffPortal);
+    document.getElementById('staffCloseBtn').addEventListener('click', closeStaffPortal);
+
+    // ── Login ────────────────────────────────────────────────────────────────
+
+    async function doStaffLogin() {
+      const username = document.getElementById('staffUsername').value.trim();
+      const pin      = document.getElementById('staffPassword').value.trim();
+      const errEl    = document.getElementById('ss-login-error');
+      errEl.textContent = '';
+
+      if (!username) { errEl.textContent = 'Please enter your username.'; return; }
+      if (!pin)      { errEl.textContent = 'Please enter your PIN.'; return; }
+
+      const loginBtn = document.getElementById('staffLoginBtn');
+      loginBtn.disabled = true;
+      loginBtn.innerHTML = '<span class="spinner"></span>Signing in…';
+
+      const { data: users, error } = await supabase
+        .from('users')
+        .select('*')
+        .ilike('username', username);
+
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Sign In';
+
+      if (error) {
+        errEl.textContent = 'Connection error. Please try again.';
+        console.warn('staff login lookup error:', error);
+        return;
+      }
+
+      // Try matching on username field; fall back to name field
+      const matched = (users || []).find(u => {
+        const uName = String(u.username || u.name || '').trim().toLowerCase();
+        return uName === username.toLowerCase();
+      });
+
+      if (!matched) {
+        errEl.textContent = 'Username not found.';
+        return;
+      }
+
+      // Compare PIN — stored as pin or password field
+      const storedPin = String(matched.pin ?? matched.password ?? '');
+      if (storedPin !== String(pin)) {
+        errEl.textContent = 'Incorrect PIN.';
+        return;
+      }
+
+      staffUser = matched;
+      document.getElementById('staffUserLabel').textContent =
+        matched.username || matched.name || username;
+      document.getElementById('staffPlateInput').value = '';
+      document.getElementById('ss-plate-error').textContent = '';
+      goStaff('ss-plate');
+    }
+
+    document.getElementById('staffLoginBtn').addEventListener('click', doStaffLogin);
+    document.getElementById('staffPassword').addEventListener('keydown', e => {
+      if (e.key === 'Enter') doStaffLogin();
+    });
+    document.getElementById('staffUsername').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('staffPassword').focus();
+    });
+
+    // ── Plate Search ─────────────────────────────────────────────────────────
+
+    document.getElementById('staffPlateBackBtn').addEventListener('click', () => {
+      staffUser = null;
+      goStaff('ss-login');
+    });
+
+    async function doStaffPlateSearch() {
+      const raw    = document.getElementById('staffPlateInput').value.trim();
+      const plate  = raw.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      const errEl  = document.getElementById('ss-plate-error');
+      errEl.textContent = '';
+
+      if (!plate) { errEl.textContent = 'Please enter a plate number.'; return; }
+
+      const searchBtn = document.getElementById('staffSearchBtn');
+      searchBtn.disabled = true;
+      searchBtn.innerHTML = '<span class="spinner"></span>Searching…';
+
+      const { data, error } = await supabase
+        .from('rental_agreements')
+        .select('*')
+        .in('rentalAgreementStatus', ['open_rental_agreement', 'close_pending']);
+
+      searchBtn.disabled = false;
+      searchBtn.textContent = 'Search';
+
+      if (error) {
+        errEl.textContent = 'Search failed. Please try again.';
+        console.warn('staff plate search error:', error);
+        return;
+      }
+
+      const norm  = p => String(p || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      staffRAs           = (data || []).filter(ra => norm(ra.plate) === norm(plate));
+      staffSearchedPlate = plate;
+
+      document.getElementById('ss-list-title').textContent = raw.toUpperCase();
+      renderStaffRAList();
+      goStaff('ss-list');
+    }
+
+    const staffPlateInput = document.getElementById('staffPlateInput');
+
+    document.getElementById('staffSearchBtn').addEventListener('click', doStaffPlateSearch);
+    staffPlateInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') doStaffPlateSearch();
+    });
+    staffPlateInput.addEventListener('input', () => {
+      const pos = staffPlateInput.selectionStart;
+      staffPlateInput.value = staffPlateInput.value.toUpperCase();
+      staffPlateInput.setSelectionRange(pos, pos);
+    });
+
+    // ── RA List ──────────────────────────────────────────────────────────────
+
+    document.getElementById('staffListBackBtn').addEventListener('click', () => goStaff('ss-plate'));
+
+    function staffFmtDate(v) {
+      if (!v) return '—';
+      const d = new Date(v);
+      if (isNaN(d)) return String(v);
+      return d.toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function staffFmtDateTime(v) {
+      if (!v) return '—';
+      const d = new Date(v);
+      if (isNaN(d)) return String(v);
+      return d.toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })
+        + ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
+
+    function renderStaffRAList() {
+      const listEl  = document.getElementById('ss-ra-list');
+      const emptyEl = document.getElementById('ss-list-empty');
+
+      if (staffRAs.length === 0) {
+        listEl.innerHTML      = '';
+        emptyEl.style.display = 'block';
+        return;
+      }
+      emptyEl.style.display = 'none';
+
+      listEl.innerHTML = staffRAs.map((ra, i) => {
+        const isOpen     = ra.rentalAgreementStatus === 'open_rental_agreement';
+        const badgeClass = isOpen ? 'badge-open' : 'badge-pending';
+        const badgeText  = isOpen ? 'On Rent' : 'Close Pending';
+        const closedLine = !isOpen && ra.returnedAt
+          ? `<br/>Moved to Close Pending: <span>${staffFmtDateTime(ra.returnedAt)}</span>`
+          : '';
+        return `
+          <div class="ra-card" data-ra-index="${i}">
+            <div class="ra-card-top">
+              <div class="ra-card-customer">${ra.customer || '—'}</div>
+              <div class="ra-status-badge ${badgeClass}">${badgeText}</div>
+            </div>
+            <div class="ra-card-meta">
+              Res: <span>${ra.resCode || '—'}</span><br/>
+              Pickup: <span>${staffFmtDate(ra.inspectedAt || ra.pickupDate)}</span>
+              &nbsp;·&nbsp; Return: <span>${ra.returnDate ? staffFmtDate(ra.returnDate) : '<em style="color:#6b8090;font-style:italic">Return date not set</em>'}</span>
+              ${closedLine}
+            </div>
+          </div>`;
+      }).join('');
+
+      listEl.querySelectorAll('.ra-card').forEach(card => {
+        card.addEventListener('click', () => {
+          openStaffRADetail(staffRAs[parseInt(card.dataset.raIndex, 10)]);
+        });
+      });
+    }
+
+    // ── RA Detail ────────────────────────────────────────────────────────────
+
+    document.getElementById('staffDetailBackBtn').addEventListener('click', () => goStaff('ss-list'));
+
+    function openStaffRADetail(ra) {
+      staffSelectedRA = ra;
+      document.getElementById('ss-detail-title').textContent = ra.resCode || 'Agreement';
+      renderStaffRADetail();
+      goStaff('ss-detail');
+    }
+
+    function renderStaffRADetail() {
+      const ra = staffSelectedRA;
+
+      const dr = (label, value, cls) => value == null || value === '' ? '' :
+        `<div class="detail-row">
+           <div class="detail-label">${label}</div>
+           <div class="detail-value${cls ? ' ' + cls : ''}">${value}</div>
+         </div>`;
+
+      const pickupDateDisplay = ra.inspectedAt
+        ? staffFmtDate(ra.inspectedAt)
+        : staffFmtDate(ra.pickupDate);
+      const pickupTimeDisplay = ra.inspectedAt
+        ? new Date(ra.inspectedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+        : '';
+      const damageFlagText  = ra.returnHasDamage == null ? '' : ra.returnHasDamage ? 'Yes' : 'No';
+      const damageFlagClass = ra.returnHasDamage ? 'damage-flag-yes' : 'damage-flag-no';
+
+      const charges = Array.isArray(ra.staffCharges) ? ra.staffCharges : [];
+      const total   = charges.reduce((s, c) => s + (parseFloat(c.amount) || 0), 0);
+      const chargeSummary = charges.length === 0
+        ? 'No charges'
+        : `${charges.length} charge${charges.length !== 1 ? 's' : ''} — $${total.toFixed(2)}`;
+
+      document.getElementById('ss-detail-body').innerHTML = `
+        <div class="detail-section-title">Pickup Info</div>
+        ${dr('Customer',         ra.customer)}
+        ${dr('Res Code',         ra.resCode)}
+        ${dr('Plate',            ra.plate)}
+        ${dr('Pickup Date',      pickupDateDisplay)}
+        ${dr('Pickup Time',      pickupTimeDisplay)}
+        ${dr('Fuel at Pickup',   ra.fuelAtPickup)}
+        ${dr('Mileage at Pickup', ra.mileage != null ? Number(ra.mileage).toLocaleString() + ' km' : '')}
+        ${dr('Vehicle Class',    ra.vehicleClass)}
+
+        <div class="detail-section-title">Return Info</div>
+        ${dr('Return Date',      staffFmtDate(ra.returnDate))}
+        ${dr('Returned At',      ra.returnedAt ? staffFmtDateTime(ra.returnedAt) : '')}
+        ${dr('Fuel at Return',   ra.returnFuelLevel || '')}
+        ${dr('Mileage at Return', ra.returnMileage != null ? Number(ra.returnMileage).toLocaleString() + ' km' : '')}
+        ${dr('New Damage',       damageFlagText, damageFlagClass)}
+        ${ra.returnHasDamage && ra.returnDamageDescription ? dr('Damage Notes', ra.returnDamageDescription) : ''}
+
+        <button class="btn btn-primary" id="viewChargesBtn" style="margin-top:18px">Return Inspection →</button>
+      `;
+
+      document.getElementById('viewChargesBtn').addEventListener('click', () => {
+        openStaffReturnInspection();
+      });
+    }
+
+    // ── Return Inspection ────────────────────────────────────────────────────
+
+    document.getElementById('staffReturnBackBtn').addEventListener('click', () => goStaff('ss-detail'));
+
+    async function openStaffReturnInspection() {
+      // Reset return inspection state
+      staffReturnFuelLevel     = 0;
+      staffReturnHasDamage     = null;
+      staffReturnDamagePhotos  = [];
+      staffReturnDamageObjUrls = [];
+      staffReturnDamageDesc    = '';
+
+      // Reset charges cache so next render fetches fresh from Supabase
+      staffChargesRaId = null;
+      staffLineItems   = [];
+
+      // Fetch fleet record for the plate so we can show previous damage
+      staffFleetVehicle = null;
+      const plate = staffSelectedRA?.plate;
+      if (plate) {
+        const { data: fleetRows } = await supabase
+          .from('fleet')
+          .select('*')
+          .ilike('plate', plate.replace(/[^A-Za-z0-9]/g, ''))
+          .limit(5);
+        const norm = p => String(p || '').replace(/[^A-Z0-9]/g, '').toUpperCase();
+        staffFleetVehicle = (fleetRows || []).find(r => norm(r.plate) === norm(plate)) || null;
+        if (!staffFleetVehicle && fleetRows?.length) staffFleetVehicle = fleetRows[0];
+      }
+
+      renderStaffReturnPage();
+      goStaff('ss-return');
+    }
+
+    function renderStaffReturnPage() {
+      const ra      = staffSelectedRA;
+      const fv      = staffFleetVehicle;
+      const damage  = Array.isArray(fv?.damage) ? fv.damage : [];
+
+      // Previous damage HTML
+      const prevDamageHtml = damage.length === 0
+        ? `<div style="color:#22c55e;font-size:0.85rem;padding:6px 0 2px">✓ No pre-existing damage on record</div>`
+        : `<ul class="damage-list" style="margin:6px 0 2px">${damage.map(d => `<li>${d}</li>`).join('')}</ul>`;
+
+      // Previous damage photos (if fleet record stores them)
+      const prevPhotos = Array.isArray(fv?.damagePhotos) ? fv.damagePhotos
+                       : Array.isArray(fv?.photos)       ? fv.photos
+                       : [];
+      const prevPhotosHtml = prevPhotos.length > 0
+        ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">`
+          + prevPhotos.map(url =>
+              `<img src="${url}" style="width:80px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #1e3535;cursor:pointer"
+                    onclick="window.open('${url}','_blank')">`
+            ).join('')
+          + `</div>`
+        : '';
+
+      document.getElementById('ss-return-body').innerHTML = `
+        <div class="detail-section-title" style="margin-bottom:12px">Odometer &amp; Fuel</div>
+
+        <label for="staffReturnOdo" style="color:#42a4ff;font-family:'Inter',sans-serif;font-size:0.72rem;font-weight:700;letter-spacing:0.11em;text-transform:uppercase;display:block;margin-bottom:6px">Odometer Reading (km)</label>
+        <input type="number" id="staffReturnOdo" placeholder="e.g. 42 500" min="0" step="1"
+               style="margin-bottom:18px;background:#1F1E1D;border:1px solid rgba(255,255,255,0.2);transition:border-color 0.15s" />
+
+        <label style="color:#42a4ff;font-family:'Inter',sans-serif;font-size:0.72rem;font-weight:700;letter-spacing:0.11em;text-transform:uppercase;display:block;margin-bottom:6px">Fuel Level</label>
+        <div class="fuel-value" id="staffReturnFuelLabel">Empty</div>
+        <input type="range" id="staffReturnFuelRange" min="0" max="8" value="0" step="1" />
+        <div class="fuel-labels">
+          <span>E</span><span>⅛</span><span>¼</span><span>⅜</span>
+          <span>½</span><span>⅝</span><span>¾</span><span>⅞</span><span>F</span>
+        </div>
+
+        <div class="detail-section-title" style="margin-top:4px;margin-bottom:10px">Previous Damage on Record</div>
+        ${prevDamageHtml}
+        ${prevPhotosHtml}
+
+        <div class="detail-section-title" style="margin-top:22px;margin-bottom:10px">New Damage?</div>
+        <div style="margin-bottom:4px">
+          <button id="staffDamageToggleBtn" style="width:100%;padding:13px 8px;border-radius:11px;background:transparent;border:1.5px solid #f87171;color:#f87171;font-family:'Inter',sans-serif;font-size:1rem;cursor:pointer">Report Damage</button>
+        </div>
+
+        <div id="staffDamageFields" style="display:none;margin-top:16px">
+          <label style="color:#42a4ff;font-family:'Inter',sans-serif;font-size:0.72rem;font-weight:700;letter-spacing:0.11em;text-transform:uppercase;display:block;margin-bottom:6px">Photos</label>
+          <input type="file" id="staffReturnDamagePhotoInput" accept="image/*" capture="environment" multiple style="display:none" />
+          <button class="btn btn-primary" id="staffAddDamagePhotoBtn" style="margin-bottom:8px">📷 &nbsp;Add Photo</button>
+          <div id="staffReturnPhotoGrid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
+          <label style="color:#42a4ff;font-family:'Inter',sans-serif;font-size:0.72rem;font-weight:700;letter-spacing:0.11em;text-transform:uppercase;display:block;margin-bottom:6px">Description <span style="color:#4a5f6a;font-size:0.72rem;letter-spacing:0;text-transform:none;font-weight:400">(optional)</span></label>
+          <textarea id="staffReturnDamageDesc" placeholder="Describe the damage…" rows="3"
+            style="width:100%;box-sizing:border-box;background:#1F1E1D;border:1px solid rgba(255,255,255,0.2);color:#F9F9F7;font-family:'Inter',sans-serif;font-size:0.92rem;border-radius:9px;padding:12px 14px;resize:vertical;margin-bottom:4px;transition:border-color 0.15s;outline:none"></textarea>
+        </div>
+
+        <div class="error-msg" id="staffReturnError" style="margin-top:8px"></div>
+        <button class="btn btn-primary" id="staffReturnContinueBtn" style="margin-top:16px" disabled>Continue →</button>
+      `;
+
+      // Odometer focus/blur border colour
+      const odoInput = document.getElementById('staffReturnOdo');
+      odoInput.addEventListener('focus', () => { odoInput.style.borderColor = '#42a4ff'; });
+      odoInput.addEventListener('blur',  () => { odoInput.style.borderColor = 'rgba(255,255,255,0.2)'; });
+
+      // Damage textarea focus/blur border colour (wired after Yes btn reveals it)
+      const wireTextareaFocus = () => {
+        const ta = document.getElementById('staffReturnDamageDesc');
+        if (!ta) return;
+        ta.addEventListener('focus', () => { ta.style.borderColor = '#42a4ff'; });
+        ta.addEventListener('blur',  () => { ta.style.borderColor = 'rgba(255,255,255,0.2)'; });
+      };
+
+      // Enabled state: odo filled AND fuel slider moved
+      let fuelMoved = false;
+      const updateContinueState = () => {
+        const odoOk  = odoInput.value.trim() !== '' && !isNaN(parseInt(odoInput.value.trim(), 10));
+        const continueBtn = document.getElementById('staffReturnContinueBtn');
+        if (continueBtn) continueBtn.disabled = !(odoOk && fuelMoved);
+      };
+      odoInput.addEventListener('input', updateContinueState);
+
+      // Fuel slider
+      const fuelRange  = document.getElementById('staffReturnFuelRange');
+      const fuelLbl    = document.getElementById('staffReturnFuelLabel');
+      fuelRange.addEventListener('input', () => {
+        staffReturnFuelLevel  = parseInt(fuelRange.value);
+        fuelLbl.textContent   = FUEL_LABELS[staffReturnFuelLevel];
+        fuelMoved = true;
+        updateContinueState();
+      });
+
+      // Damage — toggle between "Report Damage" and "No Damage"
+      staffReturnHasDamage = false;
+      const toggleBtn = document.getElementById('staffDamageToggleBtn');
+      const damageFields = document.getElementById('staffDamageFields');
+      toggleBtn.addEventListener('click', () => {
+        staffReturnHasDamage = !staffReturnHasDamage;
+        document.getElementById('staffReturnError').textContent = '';
+        if (staffReturnHasDamage) {
+          damageFields.style.display = 'block';
+          toggleBtn.textContent      = 'No Damage';
+          toggleBtn.style.borderColor = 'rgba(255,255,255,0.3)';
+          toggleBtn.style.color       = 'rgba(255,255,255,0.5)';
+          wireTextareaFocus();
+        } else {
+          damageFields.style.display = 'none';
+          toggleBtn.textContent      = 'Report Damage';
+          toggleBtn.style.borderColor = '#f87171';
+          toggleBtn.style.color       = '#f87171';
+        }
+      });
+
+      // Photo input
+      const photoInput  = document.getElementById('staffReturnDamagePhotoInput');
+      const photoGrid   = document.getElementById('staffReturnPhotoGrid');
+      document.getElementById('staffAddDamagePhotoBtn').addEventListener('click', () => photoInput.click());
+      photoInput.addEventListener('change', () => {
+        staffReturnDamagePhotos  = [...staffReturnDamagePhotos, ...Array.from(photoInput.files)];
+        staffReturnDamageObjUrls = staffReturnDamagePhotos.map(f => URL.createObjectURL(f));
+        photoGrid.innerHTML      = '';
+        staffReturnDamageObjUrls.forEach((url, i) => {
+          const img      = document.createElement('img');
+          img.src        = url;
+          img.style.cssText = 'width:72px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #1e3535;cursor:pointer';
+          img.addEventListener('click', () => window.open(url, '_blank'));
+          photoGrid.appendChild(img);
+        });
+        photoInput.value = '';
+      });
+
+      // Continue
+      document.getElementById('staffReturnContinueBtn').addEventListener('click', async () => {
+        const errEl  = document.getElementById('staffReturnError');
+        errEl.textContent = '';
+
+        const odoVal = document.getElementById('staffReturnOdo').value.trim();
+        if (!odoVal || isNaN(parseInt(odoVal, 10))) {
+          errEl.textContent = 'Please enter the odometer reading before continuing.';
+          document.getElementById('staffReturnOdo').focus();
+          return;
+        }
+        if (staffReturnHasDamage === null) {
+          errEl.textContent = 'Please indicate whether there is any new damage.';
+          return;
+        }
+        if (staffReturnHasDamage && staffReturnDamagePhotos.length === 0) {
+          errEl.textContent = 'Please add at least one photo of the damage.';
+          return;
+        }
+
+        const continueBtn = document.getElementById('staffReturnContinueBtn');
+        continueBtn.disabled = true;
+        continueBtn.innerHTML = '<span class="spinner"></span>Saving…';
+
+        const fuelStr = FUEL_LABELS[staffReturnFuelLevel] || 'Empty';
+        const desc    = document.getElementById('staffReturnDamageDesc')?.value?.trim() || '';
+        staffReturnDamageDesc = desc;
+
+        const raUpdate = {
+          returnMileage:           parseInt(odoVal, 10),
+          returnFuelLevel:         fuelStr,
+          returnHasDamage:         staffReturnHasDamage,
+          returnDamageDescription: staffReturnHasDamage ? (desc || null) : null,
+          returnPhotoCount:        staffReturnHasDamage ? staffReturnDamagePhotos.length : 0,
+        };
+
+        const { error: saveErr } = await supabase
+          .from('rental_agreements')
+          .update(raUpdate)
+          .eq('id', staffSelectedRA.id);
+
+        continueBtn.disabled = false;
+        continueBtn.textContent = 'Continue →';
+
+        if (saveErr) {
+          errEl.textContent = 'Failed to save. Please try again.';
+          console.warn('staffReturn save error:', saveErr);
+          return;
+        }
+
+        // Update local RA record so the detail page reflects new data
+        staffSelectedRA = { ...staffSelectedRA, ...raUpdate };
+        const idx = staffRAs.findIndex(r => r.id === staffSelectedRA.id);
+        if (idx >= 0) staffRAs[idx] = staffSelectedRA;
+
+        renderStaffChargesPage();
+        goStaff('ss-charges');
+      });
+    }
+
+    async function renderStaffChargesPage() {
+      const ra   = staffSelectedRA;
+      const body = document.getElementById('ss-charges-body');
+
+      // ── Fetch from Supabase if not already cached for this RA ────────────────
+      if (staffChargesRaId !== ra?.id) {
+        body.innerHTML = `<div style="color:#8faabb;font-family:'Inter',sans-serif;padding:28px 0;text-align:center;font-size:0.9rem">Loading…</div>`;
+        const { data, error } = await supabase
+          .from('rental_agreements')
+          .select('"lineItems","payments","dailyRate","source"')
+          .eq('id', ra.id)
+          .maybeSingle();
+        if (!error && data) {
+          staffLineItems       = Array.isArray(data.lineItems) ? data.lineItems : [];
+          staffChargesPayments = Array.isArray(data.payments)  ? data.payments  : [];
+          staffChargesDR       = parseFloat(data.dailyRate)    || parseFloat(ra.dailyRate) || 0;
+          staffChargesSrc      = data.source || ra.source || '';
+        } else {
+          staffLineItems       = [];
+          staffChargesPayments = Array.isArray(ra.payments) ? ra.payments : [];
+          staffChargesDR       = parseFloat(ra.dailyRate) || 0;
+          staffChargesSrc      = ra.source || '';
+        }
+        staffChargesRaId = ra.id;
+      }
+
+      const lineItems = staffLineItems;
+      const dailyRate = staffChargesDR;
+      const source    = staffChargesSrc;
+
+      // ── Derived values ────────────────────────────────────────────────────────
+      const _dashMatch = source ? source.match(/^.+?\s[—–\-]\s(.+)$/) : null;
+      const billedTo   = _dashMatch ? _dashMatch[1].trim() : (source || '—');
+
+      let totalDays = 0;
+      if (ra.pickupDate && ra.returnDate) {
+        const _d1   = new Date(ra.pickupDate + 'T00:00:00');
+        const _d2   = new Date(ra.returnDate  + 'T00:00:00');
+        const _diff = Math.round((_d2 - _d1) / (1000 * 60 * 60 * 24)) + 1;
+        totalDays   = _diff > 0 ? _diff : 0;
+      }
+      const totalDaysStr = !ra.returnDate ? 'Return date not set'
+                         : !ra.pickupDate ? '—'
+                         : totalDays > 0  ? String(totalDays) : '—';
+      const pickupStr = ra.inspectedAt ? staffFmtDate(ra.inspectedAt) : staffFmtDate(ra.pickupDate);
+      const returnStr = ra.returnDate  ? staffFmtDate(ra.returnDate)  : '—';
+
+      // ── Bill-to vs customer split ─────────────────────────────────────────────
+      const PERSONAL_KEYS = ['waiver', 'roadside', 'injury'];
+      const applied       = lineItems.filter(it => it.applies);
+      const billToItems   = applied.filter(it =>
+        it.key === 'winter' ? !it.customerPay : !PERSONAL_KEYS.includes(it.key) || it.coveredByBillTo
+      );
+      const customerItems = applied.filter(it =>
+        it.key === 'winter' ? it.customerPay : PERSONAL_KEYS.includes(it.key) && !it.coveredByBillTo
+      );
+      const staffCharges  = Array.isArray(ra.staffCharges) ? ra.staffCharges : [];
+
+      const lineItemAmt = (it) => (parseFloat(it.qty) || 0) * (parseFloat(it.amount) || 0);
+
+      // ── Totals ────────────────────────────────────────────────────────────────
+      const useBaseCost     = applied.length === 0 && dailyRate > 0 && totalDays > 0;
+      const baseCost        = useBaseCost ? dailyRate * totalDays : 0;
+      const btLineTotal     = billToItems.reduce((s, it) => s + lineItemAmt(it), 0);
+      const staffChargesSum = staffCharges.reduce((s, c) => s + (parseFloat(c.amount) || 0), 0);
+      const btTotal         = (useBaseCost ? baseCost : btLineTotal) + staffChargesSum;
+      const custTotal       = customerItems.reduce((s, it) => s + lineItemAmt(it), 0);
+
+      // ── HTML helpers ──────────────────────────────────────────────────────────
+      const summaryRow = (label, val) =>
+        `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:5px 0">
+           <span style="font-size:0.72rem;font-weight:700;color:#6b8090;letter-spacing:0.08em;text-transform:uppercase;font-family:'Inter',sans-serif">${label}</span>
+           <span style="font-size:0.88rem;color:#F9F9F7;font-family:'Inter',sans-serif;text-align:right">${val}</span>
+         </div>`;
+
+      const chargeRow = (label, amount) =>
+        `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+           <span style="font-size:0.88rem;color:#F9F9F7;font-family:'Inter',sans-serif">${label}</span>
+           <span style="font-size:0.88rem;color:#F9F9F7;font-family:'Inter',sans-serif;white-space:nowrap;padding-left:12px">$${(+amount).toFixed(2)}</span>
+         </div>`;
+
+      const subtotalRow = (id, value) =>
+        `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0 0">
+           <span style="font-size:0.75rem;color:#8faabb;font-family:'Inter',sans-serif;text-transform:uppercase;letter-spacing:0.06em">Subtotal</span>
+           <span id="${id}" style="font-size:0.9rem;font-weight:700;color:#F9F9F7;font-family:'Inter',sans-serif">$${value.toFixed(2)}</span>
+         </div>`;
+
+      // ── Bill-to rows ──────────────────────────────────────────────────────────
+      let btRows = '';
+      if (useBaseCost) {
+        const rateNote = dailyRate > 0 ? ` @ $${dailyRate.toFixed(2)}/day` : '';
+        btRows = chargeRow(`Vehicle (${totalDays} day${totalDays !== 1 ? 's' : ''}${rateNote})`, baseCost);
+      } else {
+        btRows = billToItems.map(it => chargeRow(it.label, lineItemAmt(it))).join('');
+      }
+      const staffChargeRowsHtml = staffCharges.map(c =>
+        chargeRow(
+          c.type + (c.description ? ` <span style="color:#8faabb;font-size:0.82rem">— ${c.description}</span>` : ''),
+          parseFloat(c.amount) || 0
+        )
+      ).join('');
+
+      const billToSection = `
+        <div style="margin-bottom:24px">
+          <div style="font-size:0.68rem;font-weight:700;color:#42a4ff;letter-spacing:0.12em;text-transform:uppercase;font-family:'Inter',sans-serif;margin-bottom:6px">${billedTo}</div>
+          ${btRows || staffChargeRowsHtml
+            ? btRows + staffChargeRowsHtml
+            : `<div style="padding:7px 0;color:#6b8090;font-size:0.85rem;font-style:italic;font-family:'Inter',sans-serif">No charges on file</div>`}
+          ${subtotalRow('staff-bt-total', btTotal)}
+        </div>`;
+
+      const customerSection = customerItems.length > 0 ? `
+        <div style="margin-bottom:24px">
+          <div style="font-size:0.68rem;font-weight:700;color:#42a4ff;letter-spacing:0.12em;text-transform:uppercase;font-family:'Inter',sans-serif;margin-bottom:6px">Customer</div>
+          ${customerItems.map(it => chargeRow(it.label, lineItemAmt(it))).join('')}
+          ${subtotalRow('staff-cust-total', custTotal)}
+        </div>` : '';
+
+      // ── Render ────────────────────────────────────────────────────────────────
+      body.innerHTML = `
+        <div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:14px 16px;margin-bottom:28px">
+          ${summaryRow('Customer', ra.customer || '—')}
+          ${summaryRow('Plate',    ra.plate    || '—')}
+          ${summaryRow('Pickup',   pickupStr)}
+          ${summaryRow('Return',   returnStr)}
+          ${summaryRow('Days',     totalDaysStr)}
+        </div>
+
+        ${billToSection}
+        ${customerSection}
+
+        <div style="display:flex;justify-content:space-between;align-items:center;border-top:2px solid rgba(255,255,255,0.1);padding:14px 0;margin-bottom:32px">
+          <span style="font-size:1rem;font-weight:700;color:#F9F9F7;font-family:'Inter',sans-serif">Balance Owing</span>
+          <span style="font-size:1.2rem;font-weight:700;font-family:'Inter',sans-serif;color:${custTotal > 0 ? '#f87171' : '#F9F9F7'}">$${custTotal.toFixed(2)}</span>
+        </div>
+
+        <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:22px;margin-bottom:4px">
+          <div style="font-size:0.7rem;font-weight:700;color:#42a4ff;letter-spacing:0.12em;text-transform:uppercase;font-family:'Inter',sans-serif;margin-bottom:18px">Add Charge</div>
+          <label>Type</label>
+          <div class="select-wrap" style="margin-bottom:0">
+            <select id="chargeType">
+              <option value="" selected>Select type…</option>
+              <option value="Extra Day">Extra Day</option>
+              <option value="Damage">Damage</option>
+              <option value="Gas">Gas</option>
+              <option value="Cleaning">Cleaning</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <label>Description <span style="text-transform:none;color:#4a5f6a;font-size:0.72rem;letter-spacing:0">(optional)</span></label>
+          <input type="text" id="chargeDesc" placeholder="e.g. 2 extra days @ $59/day" />
+          <label>Amount</label>
+          <input type="number" id="chargeAmount" value="0.00" min="0" step="0.01" style="margin-bottom:8px" />
+          <div class="error-msg" id="charge-error"></div>
+          <button class="btn btn-primary" id="addChargeBtn" style="margin-top:8px">Add Charge</button>
+        </div>
+
+        <button id="closeRentalBtn" style="display:block;width:100%;margin-top:16px;padding:14px 8px;border-radius:11px;background:transparent;border:1.5px solid #e53935;color:#e53935;font-family:'Inter',sans-serif;font-size:0.95rem;font-weight:400;cursor:pointer;position:relative;z-index:1">Close Rental</button>
+        <div style="height:32px"></div>
+      `;
+
+      // ── Wire Add Charge inputs ────────────────────────────────────────────────
+      ['chargeDesc', 'chargeAmount', 'chargeType'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('focus', () => { el.style.borderColor = '#42a4ff'; });
+        el.addEventListener('blur',  () => { el.style.borderColor = 'rgba(255,255,255,0.2)'; });
+      });
+      const amtInput = document.getElementById('chargeAmount');
+      if (amtInput) {
+        amtInput.addEventListener('focus', () => { if (amtInput.value === '0' || amtInput.value === '0.00') amtInput.value = ''; });
+        amtInput.addEventListener('blur',  () => { if (amtInput.value.trim() === '') amtInput.value = '0.00'; });
+      }
+
+      document.getElementById('addChargeBtn').addEventListener('click', doAddCharge);
+
+      document.getElementById('closeRentalBtn').addEventListener('click', () => {
+        document.getElementById('closeConfirmPin').value      = '';
+        document.getElementById('ss-close-error').textContent = '';
+        goStaff('ss-close');
+      });
+    }
+
+    // ── Add Charge ───────────────────────────────────────────────────────────
+
+    async function doAddCharge() {
+      const type   = document.getElementById('chargeType').value;
+      const desc   = document.getElementById('chargeDesc').value.trim();
+      const amtStr = document.getElementById('chargeAmount').value.trim();
+      const errEl  = document.getElementById('charge-error');
+      errEl.textContent = '';
+
+      if (!type) {
+        errEl.textContent = 'Please select a charge type.';
+        return;
+      }
+      const amt = parseFloat(amtStr);
+      if (!amtStr || isNaN(amt) || amt <= 0) {
+        errEl.textContent = 'Please enter a valid amount greater than $0.';
+        return;
+      }
+
+      const addBtn = document.getElementById('addChargeBtn');
+      addBtn.disabled = true;
+      addBtn.innerHTML = '<span class="spinner"></span>Saving…';
+
+      const newItem = {
+        key:     `sc_${Date.now()}`,
+        label:   type + (desc ? ` — ${desc}` : ''),
+        applies: true,
+        qty:     1,
+        amount:  parseFloat(amt.toFixed(2)),
+      };
+      const updatedLineItems = [...staffLineItems, newItem];
+
+      const { error } = await supabase
+        .from('rental_agreements')
+        .update({ "lineItems": updatedLineItems })
+        .eq('id', staffSelectedRA.id);
+
+      addBtn.disabled = false;
+      addBtn.textContent = 'Add Charge';
+
+      if (error) {
+        errEl.textContent = 'Failed to save charge. Please try again.';
+        console.warn('addCharge error:', error);
+        return;
+      }
+
+      staffLineItems = updatedLineItems;
+      const idx = staffRAs.findIndex(r => r.id === staffSelectedRA.id);
+      if (idx >= 0) staffRAs[idx] = staffSelectedRA;
+
+      renderStaffChargesPage();
+    }
+
+    // ── Charges Page ─────────────────────────────────────────────────────────
+
+    document.getElementById('staffChargesBackBtn').addEventListener('click', () => goStaff('ss-return'));
+
+    // ── Close Rental PIN Confirm ─────────────────────────────────────────────
+
+    document.getElementById('staffCloseBackBtn').addEventListener('click', () => goStaff('ss-charges'));
+    document.getElementById('closeConfirmPin').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('confirmCloseBtn').click();
+    });
+
+    document.getElementById('confirmCloseBtn').addEventListener('click', async () => {
+      const pin   = document.getElementById('closeConfirmPin').value.trim();
+      const errEl = document.getElementById('ss-close-error');
+      errEl.textContent = '';
+
+      if (!pin) { errEl.textContent = 'Please enter your PIN.'; return; }
+
+      const storedPin = String(staffUser?.pin ?? staffUser?.password ?? '');
+      if (String(pin) !== storedPin) {
+        errEl.textContent = 'Incorrect PIN.';
+        return;
+      }
+
+      const confirmBtn = document.getElementById('confirmCloseBtn');
+      confirmBtn.disabled = true;
+      confirmBtn.innerHTML = '<span class="spinner"></span>Closing…';
+
+      const { error } = await supabase
+        .from('rental_agreements')
+        .update({ rentalAgreementStatus: 'closed' })
+        .eq('id', staffSelectedRA.id);
+
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Confirm Close Rental';
+
+      if (error) {
+        errEl.textContent = 'Failed to close rental. Please try again.';
+        console.warn('closeRental error:', error);
+        return;
+      }
+
+      console.log('Rental closed — RA id:', staffSelectedRA.id);
+
+      // Update local state
+      staffSelectedRA = { ...staffSelectedRA, rentalAgreementStatus: 'closed' };
+      const idx = staffRAs.findIndex(r => r.id === staffSelectedRA.id);
+      if (idx >= 0) staffRAs[idx] = staffSelectedRA;
+
+      renderStaffVStatusScreen();
+      goStaff('ss-vstatus');
+    });
+
+    // ── Vehicle Status After Close ───────────────────────────────────────────
+
+    const VSTATUS_OPTIONS = [
+      'Available', 'Needs Cleaning', 'On Rent',
+      'LOFR', 'Maintenance', 'Ready Returns', 'Out of Service',
+    ];
+
+    function renderStaffVStatusScreen() {
+      const grid     = document.getElementById('vstatusGrid');
+      const savingEl = document.getElementById('vstatusSaving');
+      const doneBtn  = document.getElementById('staffDoneBtn');
+      savingEl.textContent = '';
+      doneBtn.disabled = true;
+
+      grid.innerHTML = VSTATUS_OPTIONS.map(s =>
+        `<button class="vstatus-btn" data-status="${s}">${s}</button>`
+      ).join('');
+
+      grid.querySelectorAll('.vstatus-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const status = btn.dataset.status;
+          grid.querySelectorAll('.vstatus-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          savingEl.textContent = 'Saving…';
+          doneBtn.disabled = true;
+
+          let fleetErr = null;
+          if (staffSelectedRA?.plate) {
+            const res = await supabase
+              .from('fleet')
+              .update({ status })
+              .eq('plate', staffSelectedRA.plate);
+            console.log('vstatus fleet update:', res);
+            fleetErr = res.error;
+          }
+
+          if (fleetErr) {
+            savingEl.textContent = '⚠ Save failed — please try again.';
+          } else {
+            savingEl.textContent = `✓ Status set to "${status}"`;
+            doneBtn.disabled = false;
+          }
+        });
+      });
+    }
+
+    document.getElementById('staffDoneBtn').addEventListener('click', () => {
+      closeStaffPortal();
+      staffRAs        = [];
+      staffSelectedRA = null;
+    });
+
+  </script>
+</body>
+</html>
