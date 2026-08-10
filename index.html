@@ -2179,6 +2179,13 @@
             } else if (vehicle?.plate) {
               await supabase.from('fleet').update({ status: 'On Rent' }).eq('plate', vehicle.plate);
             }
+
+            // Mark the reservation as converted so it drops off the internal
+            // system's active reservations list
+            await supabase
+              .from('reservations')
+              .update({ rentalAgreementStatus: 'open_rental_agreement' })
+              .eq('resCode', resolvedResCode);
           }
         }
       } catch (e) {
