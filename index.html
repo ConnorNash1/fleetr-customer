@@ -1456,6 +1456,54 @@
 
     const FUEL_LABELS = ['Empty', '⅛', '¼', '⅜', '½', '⅝', '¾', '⅞', 'Full'];
 
+    // ── Gas collection ────────────────────────────────────────────────────────
+    // Fuel is stored on rental_agreements as a display label ('¾', 'Full'), not a
+    // number, so the charge math has to map the label back to a fraction first.
+    // Returns null for anything unrecognised so a bad value can never silently
+    // become 0 (which would read as an empty tank and overcharge the customer).
+    function fuelLabelToFraction(label) {
+      const idx = FUEL_LABELS.indexOf(String(label || '').trim());
+      return idx === -1 ? null : idx / (FUEL_LABELS.length - 1);
+    }
+
+    // Every input is optional-by-failure: if tank size, price, or either fuel
+    // reading is missing, this returns null and the caller leaves gasOwed alone
+    // so staff can still enter it by hand in Gas Collections.
+    function calculateGasCharge({ pickupFuel, returnFuel, tankSizeLiters, pricePerLiter, markupPercent }) {
+      const pickupFrac = fuelLabelToFraction(pickupFuel);
+      const returnFrac = fuelLabelToFraction(returnFuel);
+      const tank       = parseFloat(tankSizeLiters);
+      const price      = parseFloat(pricePerLiter);
+      const markup     = parseFloat(markupPercent);
+
+      if (pickupFrac === null || returnFrac === null)   return null;
+      if (!Number.isFinite(tank)  || tank  <= 0)        return null;
+      if (!Number.isFinite(price) || price <= 0)        return null;
+      if (returnFrac >= pickupFrac)                     return null; // returned full enough
+
+      const litersShort = (pickupFrac - returnFrac) * tank;
+      const rate        = Number.isFinite(markup) ? markup : 0;
+      const charge      = litersShort * price * (1 + rate / 100);
+      return { litersShort, charge: Math.round(charge * 100) / 100 };
+    }
+
+    // Region comes from the vehicle's province — the only geographic field that
+    // is actually populated on every fleet row. reservations.location holds
+    // partner/bodyshop codes (AF, FA, WI…), not a geography, so it is not used.
+    async function loadGasSettings() {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('*')
+        .in('key', ['gasMarkupPercent', 'gasPrices', 'gasDefaultRegion']);
+      if (error) { console.warn('app_settings load error:', error); return null; }
+      const byKey = Object.fromEntries((data || []).map(r => [r.key, r.value]));
+      return {
+        markupPercent: byKey.gasMarkupPercent,
+        prices:        byKey.gasPrices        || {},
+        defaultRegion: byKey.gasDefaultRegion || null,
+      };
+    }
+
     // ── Screen routing ────────────────────────────────────────────────────────
     const PICKUP_SCREENS = ['s1','s2','s3','s4','s5','s6','s7'];
     const RETURN_SCREENS = ['s1','s8','s9','s9b','s10','s10b','s11'];
@@ -1852,11 +1900,12 @@
       // All three validated — check rental_agreements for current status to determine flow
       const { data: raRow } = await supabase
         .from('rental_agreements')
-        .select('id, rentalAgreementStatus')
+        .select('id, rentalAgreementStatus, "fuelAtPickup"')
         .eq('resCode', resCode)
         .maybeSingle();
-      const raStatus = raRow?.rentalAgreementStatus || '';
-      const raId     = raRow?.id || null;
+      const raStatus       = raRow?.rentalAgreementStatus || '';
+      const raId           = raRow?.id || null;
+      const raFuelAtPickup = raRow?.fuelAtPickup || null;
 
       // If an RA exists but is NOT open_rental_agreement, block — can't pick up or return
       if (raStatus && raStatus !== 'open_rental_agreement') {
@@ -1867,7 +1916,7 @@
       const detectedFlow = raStatus === 'open_rental_agreement' ? 'return' : 'pickup';
       console.log('All steps passed — detectedFlow:', detectedFlow, '| resolvedResCode:', resCode, '| raId:', raId);
 
-      return { ...matchedVehicle, detectedFlow, resolvedResCode: resCode, raId };
+      return { ...matchedVehicle, detectedFlow, resolvedResCode: resCode, raId, raFuelAtPickup };
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -2421,6 +2470,29 @@
             returnVideoCount:        returnHasDamage && returnDamageVideo ? 1 : 0,
             returnVehicleLocation:   returnVehicleLocation || null,
           };
+
+          // Gas collection — same rules as the staff return flow: any missing
+          // input leaves gasOwed alone rather than guessing at a charge.
+          const gasSettings = await loadGasSettings();
+          if (gasSettings) {
+            const region = vehicle?.province || gasSettings.defaultRegion;
+            const gas = calculateGasCharge({
+              pickupFuel:     vehicle?.raFuelAtPickup,
+              returnFuel:     fuelStr,
+              tankSizeLiters: vehicle?.tankSizeLiters,
+              pricePerLiter:  region ? gasSettings.prices?.[region] : null,
+              markupPercent:  gasSettings.markupPercent,
+            });
+            if (gas) {
+              raUpdate.gasOwed = gas.charge.toFixed(2);
+              console.log('gas charge calculated:', {
+                region, litersShort: gas.litersShort, charge: gas.charge,
+              });
+            } else {
+              console.log('gas charge skipped — missing tank size, regional price, or no fuel gap');
+            }
+          }
+
           console.log('submitReturn — RA update payload:', raUpdate);
 
           // Prefer filtering by primary key (id) for reliability; fall back to resCode
@@ -2996,19 +3068,70 @@
           returnPhotoCount:        staffReturnHasDamage ? staffReturnDamagePhotos.length : 0,
         };
 
+        // New damage marks the rental agreement close_pending from this same
+        // action — staff still finalize the close later from ss-close.
+        if (staffReturnHasDamage) {
+          raUpdate.rentalAgreementStatus = 'close_pending';
+        }
+
+        // Gas collection: charge for the fuel gap, if we have everything needed.
+        // Any missing piece (tank size, regional price, fuel reading) leaves
+        // gasOwed untouched so it stays manually enterable in Gas Collections.
+        const gasSettings = await loadGasSettings();
+        if (gasSettings) {
+          const region = staffFleetVehicle?.province || gasSettings.defaultRegion;
+          const gas = calculateGasCharge({
+            pickupFuel:     staffSelectedRA.fuelAtPickup,
+            returnFuel:     fuelStr,
+            tankSizeLiters: staffFleetVehicle?.tankSizeLiters,
+            pricePerLiter:  region ? gasSettings.prices?.[region] : null,
+            markupPercent:  gasSettings.markupPercent,
+          });
+          if (gas) {
+            raUpdate.gasOwed = gas.charge.toFixed(2);
+            console.log('gas charge calculated:', {
+              region, litersShort: gas.litersShort, charge: gas.charge,
+            });
+          } else {
+            console.log('gas charge skipped — missing tank size, regional price, or no fuel gap', {
+              region,
+              tankSizeLiters: staffFleetVehicle?.tankSizeLiters,
+              price: region ? gasSettings.prices?.[region] : null,
+              pickupFuel: staffSelectedRA.fuelAtPickup, returnFuel: fuelStr,
+            });
+          }
+        }
+
         const { error: saveErr } = await supabase
           .from('rental_agreements')
           .update(raUpdate)
           .eq('id', staffSelectedRA.id);
 
-        continueBtn.disabled = false;
-        continueBtn.textContent = 'Continue →';
-
         if (saveErr) {
+          continueBtn.disabled = false;
+          continueBtn.textContent = 'Continue →';
           errEl.textContent = 'Failed to save. Please try again.';
           console.warn('staffReturn save error:', saveErr);
           return;
         }
+
+        // Insert the damage claim itself — photos aren't uploaded anywhere yet,
+        // only counted, so the claim starts with an empty photos array.
+        if (staffReturnHasDamage) {
+          const claimInsert = {
+            id:                crypto.randomUUID(),
+            plate:             staffSelectedRA.plate || null,
+            rentalAgreementId: staffSelectedRA.id,
+            description:       desc || null,
+            photos:            [],
+            status:            'open',
+          };
+          const { error: claimErr } = await supabase.from('damage_claims').insert(claimInsert);
+          if (claimErr) console.warn('damage_claims insert error:', claimErr);
+        }
+
+        continueBtn.disabled = false;
+        continueBtn.textContent = 'Continue →';
 
         // Update local RA record so the detail page reflects new data
         staffSelectedRA = { ...staffSelectedRA, ...raUpdate };
