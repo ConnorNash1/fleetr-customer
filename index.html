@@ -1487,6 +1487,64 @@
       return { litersShort, charge: Math.round(charge * 100) / 100 };
     }
 
+    // ── Preventative Maintenance ──────────────────────────────────────────────
+    // Returning a vehicle is the only moment an odometer reading is captured, so
+    // the PM check runs here rather than on a schedule. Everything is in
+    // kilometres: fleet.pmIntervalKm and lastPmOdometer are stored canonically,
+    // and the internal app converts to miles for display only.
+    //
+    // Returns the fleet patch to apply, or null to leave status alone.
+    function evaluatePm(vehicleRow, odometerKm) {
+      if (!vehicleRow) return null;
+      if (odometerKm == null || !Number.isFinite(odometerKm)) return null;
+
+      const patch = { currentOdometer: odometerKm };
+
+      // First reading for this vehicle: record a baseline instead of flagging it,
+      // otherwise every vehicle would look overdue the first time it came back.
+      if (vehicleRow.lastPmOdometer == null) {
+        patch.lastPmOdometer = odometerKm;
+        return { patch, due: false, reason: 'baseline recorded' };
+      }
+
+      const interval = parseFloat(vehicleRow.pmIntervalKm);
+      if (!Number.isFinite(interval) || interval <= 0) {
+        return { patch, due: false, reason: 'no PM interval set' };
+      }
+
+      const since = odometerKm - vehicleRow.lastPmOdometer;
+      if (since >= interval) {
+        // PM is a flag, not a status. The vehicle keeps whatever status the
+        // return gives it (normally Ready Returns) so staff still process the
+        // check in, and it appears under Preventative Maintenance at the same
+        // time. Status only becomes 'PM' when staff later advance it out of
+        // Ready Returns, which the internal app enforces.
+        patch.needsPm = true;
+        return { patch, due: true, since, interval, reason: 'PM due' };
+      }
+      return { patch, due: false, since, interval, reason: 'not yet due' };
+    }
+
+    // Applies the return-time fleet update, folding in the PM decision.
+    async function applyReturnFleetUpdate(vehicleRow, odometerKm, defaultStatus) {
+      const result = evaluatePm(vehicleRow, odometerKm);
+      const patch = { status: defaultStatus, ...(result ? result.patch : {}) };
+      if (result) {
+        console.log('PM check:', {
+          plate: vehicleRow?.plate, odometerKm,
+          lastPmOdometer: vehicleRow?.lastPmOdometer,
+          pmIntervalKm: vehicleRow?.pmIntervalKm,
+          ...result, patch,
+        });
+      }
+      const q = vehicleRow?.id
+        ? supabase.from('fleet').update(patch).eq('id', vehicleRow.id)
+        : supabase.from('fleet').update(patch).eq('plate', vehicleRow.plate);
+      const res = await q;
+      if (res.error) console.warn('fleet return update FAILED:', res.error);
+      return res;
+    }
+
     // Region comes from the vehicle's province — the only geographic field that
     // is actually populated on every fleet row. reservations.location holds
     // partner/bodyshop codes (AF, FA, WI…), not a geography, so it is not used.
@@ -1834,6 +1892,31 @@
         document.getElementById('s10bError').textContent               = '';
         goTo('s8');
       } else {
+        // Soft block on starting a pickup for a vehicle that is due for
+        // preventative maintenance. Raised here, at the point the vehicle is
+        // identified, rather than at submit, so nobody completes a full
+        // inspection only to be stopped at the end. Cancelling is the default:
+        // dismissing the dialog abandons the pickup and the vehicle stays put.
+        // Overriding changes nothing about needsPm, so the vehicle keeps
+        // showing under Preventative Maintenance either way.
+        if (vehicle?.needsPm) {
+          const proceed = window.confirm(
+            `${vehicle.plate} is flagged for preventative maintenance.\n\n` +
+            `It is due for service and should normally be sent to PM before going out again.\n\n` +
+            `OK: continue this pickup anyway. The PM flag stays on.\n` +
+            `Cancel: stop and do not rent this vehicle.`
+          );
+          console.log('PM soft block on pickup:', { plate: vehicle.plate, needsPm: vehicle.needsPm, proceed });
+          if (!proceed) {
+            findBtn.disabled = false;
+            findBtn.textContent = 'Start Rental Process';
+            document.getElementById('s1Error').textContent =
+              `${vehicle.plate} is due for preventative maintenance. Pickup cancelled.`;
+            vehicle = null;
+            flowType = 'pickup';
+            return;
+          }
+        }
         configureFlow();
         buildDamageScreen();
         goTo('s2');
@@ -2171,11 +2254,10 @@
               .from('rental_agreements')
               .update({ rentalAgreementStatus: 'close_pending' })
               .eq('resCode', resolvedResCode);
-            // Update fleet vehicle status to Ready Returns
-            if (vehicle?.id) {
-              await supabase.from('fleet').update({ status: 'Ready Returns' }).eq('id', vehicle.id);
-            } else if (vehicle?.plate) {
-              await supabase.from('fleet').update({ status: 'Ready Returns' }).eq('plate', vehicle.plate);
+            // Ready Returns, unless the odometer says PM is due
+            if (vehicle?.id || vehicle?.plate) {
+              const odoKm = mileage ? parseInt(mileage, 10) : null;
+              await applyReturnFleetUpdate(vehicle, odoKm, 'Ready Returns');
             }
           } else {
             // ── Pickup flow: fetch reservation details then insert a full rental agreement ──
@@ -2489,7 +2571,7 @@
                 region, litersShort: gas.litersShort, charge: gas.charge,
               });
             } else {
-              console.log('gas charge skipped — missing tank size, regional price, or no fuel gap');
+              console.log('gas charge skipped: missing tank size, regional price, or no fuel gap');
             }
           }
 
@@ -2508,15 +2590,11 @@
             console.warn('submitReturn — RA update FAILED:', raRes.error);
           }
 
-          // fleet vehicle → Ready Returns (prefer fleet id over plate)
-          if (vehicle?.id) {
-            const fleetRes = await supabase.from('fleet').update({ status: 'Ready Returns' }).eq('id', vehicle.id);
-            console.log('submitReturn — fleet update (by id):', fleetRes);
-            if (fleetRes.error) console.warn('submitReturn — fleet update FAILED:', fleetRes.error);
-          } else if (vehicle?.plate) {
-            const fleetRes = await supabase.from('fleet').update({ status: 'Ready Returns' }).eq('plate', vehicle.plate);
-            console.log('submitReturn — fleet update (by plate):', fleetRes);
-            if (fleetRes.error) console.warn('submitReturn — fleet update FAILED:', fleetRes.error);
+          // fleet vehicle → Ready Returns, unless the odometer says PM is due
+          if (vehicle?.id || vehicle?.plate) {
+            const odoKm = returnMileage ? parseInt(returnMileage, 10) : null;
+            const fleetRes = await applyReturnFleetUpdate(vehicle, odoKm, 'Ready Returns');
+            console.log('submitReturn, fleet update:', fleetRes);
           }
         }
       } catch (e) {
@@ -3093,7 +3171,7 @@
               region, litersShort: gas.litersShort, charge: gas.charge,
             });
           } else {
-            console.log('gas charge skipped — missing tank size, regional price, or no fuel gap', {
+            console.log('gas charge skipped: missing tank size, regional price, or no fuel gap', {
               region,
               tankSizeLiters: staffFleetVehicle?.tankSizeLiters,
               price: region ? gasSettings.prices?.[region] : null,
@@ -3115,7 +3193,21 @@
           return;
         }
 
-        // Insert the damage claim itself — photos aren't uploaded anywhere yet,
+        // This is the only point in the staff flow where an odometer reading is
+        // captured, so the PM check runs here. Staff can still override the
+        // status later on the Vehicle Status screen if they choose.
+        if (staffFleetVehicle) {
+          const pmRes = evaluatePm(staffFleetVehicle, parseInt(odoVal, 10));
+          if (pmRes) {
+            const { error: pmErr } = await supabase
+              .from('fleet').update(pmRes.patch).eq('id', staffFleetVehicle.id);
+            if (pmErr) console.warn('fleet PM update failed:', pmErr);
+            else Object.assign(staffFleetVehicle, pmRes.patch);
+            console.log('PM check (staff return):', { plate: staffFleetVehicle.plate, ...pmRes });
+          }
+        }
+
+        // Insert the damage claim itself. Photos aren't uploaded anywhere yet,
         // only counted, so the claim starts with an empty photos array.
         if (staffReturnHasDamage) {
           const claimInsert = {
@@ -3434,9 +3526,12 @@
 
     // ── Vehicle Status After Close ───────────────────────────────────────────
 
+    // These strings are written straight into fleet.status, so they must match
+    // the values the internal app filters on. 'LOFR' was renamed to 'PM'
+    // (Preventative Maintenance) there.
     const VSTATUS_OPTIONS = [
       'Available', 'Needs Cleaning', 'On Rent',
-      'LOFR', 'Maintenance', 'Ready Returns', 'Out of Service',
+      'PM', 'Maintenance', 'Ready Returns', 'Out of Service',
     ];
 
     function renderStaffVStatusScreen() {
@@ -3459,19 +3554,35 @@
           doneBtn.disabled = true;
 
           let fleetErr = null;
+          let finalStatus = status;
+          let forcedPm = false;
+
           if (staffSelectedRA?.plate) {
+            // A vehicle flagged for preventative maintenance cannot be put back
+            // into a working status here. Mirrors the same rule in the internal
+            // app so both entry points behave identically.
+            const { data: fv } = await supabase
+              .from('fleet').select('needsPm').eq('plate', staffSelectedRA.plate).maybeSingle();
+            if (fv?.needsPm && ['Available', 'Needs Cleaning', 'Ready for Pickup'].includes(status)) {
+              finalStatus = 'PM';
+              forcedPm = true;
+            }
+
             const res = await supabase
               .from('fleet')
-              .update({ status })
+              .update({ status: finalStatus })
               .eq('plate', staffSelectedRA.plate);
-            console.log('vstatus fleet update:', res);
+            console.log('vstatus fleet update:', { requested: status, finalStatus, forcedPm, res });
             fleetErr = res.error;
           }
 
           if (fleetErr) {
-            savingEl.textContent = '⚠ Save failed — please try again.';
+            savingEl.textContent = '⚠ Save failed, please try again.';
+          } else if (forcedPm) {
+            savingEl.textContent = `Set to "PM" instead: this vehicle is due for preventative maintenance.`;
+            doneBtn.disabled = false;
           } else {
-            savingEl.textContent = `✓ Status set to "${status}"`;
+            savingEl.textContent = `✓ Status set to "${finalStatus}"`;
             doneBtn.disabled = false;
           }
         });
