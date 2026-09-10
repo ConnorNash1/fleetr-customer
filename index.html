@@ -2721,38 +2721,38 @@
       loginBtn.disabled = true;
       loginBtn.innerHTML = '<span class="spinner"></span>Signing in…';
 
-      const { data: users, error } = await supabase
-        .from('users')
-        .select('*')
-        .ilike('username', username);
+      // The PIN is checked in the database by staff_login, against the bcrypt
+      // hash, which never reaches this page. anon can call that function and
+      // cannot read the users table at all.
+      const { data: result, error } = await supabase.rpc('staff_login', {
+        p_username: username,
+        p_pin:      pin,
+      });
 
       loginBtn.disabled = false;
       loginBtn.textContent = 'Sign In';
 
       if (error) {
         errEl.textContent = 'Connection error. Please try again.';
-        console.warn('staff login lookup error:', error);
+        console.warn('staff login error:', error);
         return;
       }
 
-      // Try matching on username field; fall back to name field
-      const matched = (users || []).find(u => {
-        const uName = String(u.username || u.name || '').trim().toLowerCase();
-        return uName === username.toLowerCase();
-      });
-
-      if (!matched) {
-        errEl.textContent = 'Username not found.';
+      if (!result || !result.ok) {
+        // One message for an unknown username and a wrong PIN, because the
+        // server deliberately answers both the same way. Telling them apart
+        // here would take a guess, and a guess that says "not found" to anyone
+        // who asks is a list of who works here.
+        if (result && result.locked) {
+          const mins = Math.max(1, Math.ceil((result.retryInSeconds || 0) / 60));
+          errEl.textContent = `Too many attempts. Try again in ${mins} minute${mins === 1 ? '' : 's'}.`;
+        } else {
+          errEl.textContent = 'Incorrect username or PIN.';
+        }
         return;
       }
 
-      // Compare PIN — stored as pin or password field
-      const storedPin = String(matched.pin ?? matched.password ?? '');
-      if (storedPin !== String(pin)) {
-        errEl.textContent = 'Incorrect PIN.';
-        return;
-      }
-
+      const matched = result.profile;
       staffUser = matched;
       document.getElementById('staffUserLabel').textContent =
         matched.username || matched.name || username;
