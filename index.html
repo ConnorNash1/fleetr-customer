@@ -918,6 +918,14 @@
       <label for="plateInput">License Plate</label>
       <input type="text" id="plateInput" placeholder="No spaces or dashes"
              autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+      <!-- Filled in from the staff portal's list at start-up, so there is one
+           list of provinces and states to keep up to date. -->
+      <label for="plateProvinceSelect">Plate Province / State</label>
+      <div class="select-wrap">
+        <select id="plateProvinceSelect">
+          <option value="">Select the province or state on the plate</option>
+        </select>
+      </div>
 
       <button class="btn btn-primary" id="findVehicleBtn">Start Rental Process</button>
 
@@ -1270,7 +1278,7 @@
       <label for="staffProvinceSelect">Province / State</label>
       <div class="select-wrap">
         <select id="staffProvinceSelect">
-          <option value="">Any Province / State</option>
+          <option value="">Select Province / State</option>
           <optgroup label="Canada">
             <option value="NL">NL — Newfoundland &amp; Labrador</option>
             <option value="NS">NS — Nova Scotia</option>
@@ -1437,6 +1445,13 @@
     // ── App state ─────────────────────────────────────────────────────────────
     let vehicle   = null;
     let flowType  = 'pickup'; // 'pickup' or 'return' — detected from Supabase
+
+    // The company this customer's reservation belongs to, as lookup_reservation
+    // returned it, plus the reservation's own fields. Set once the reservation
+    // is found and kept for the rest of the session, so every later step knows
+    // which company it is working in instead of guessing from a plate or code.
+    // Cleared when the next customer starts.
+    let customerSession = null;   // { operatorId, locationId, reservation }
     let videoFile = null;
     let photos    = [];
     let odoPhoto  = null;
@@ -1584,7 +1599,23 @@
     const findBtn         = document.getElementById('findVehicleBtn');
     const s1Error         = document.getElementById('s1Error');
     const plateEl         = document.getElementById('plateInput');
+    const plateProvinceEl = document.getElementById('plateProvinceSelect');
     const licenseEl       = document.getElementById('licenseInput');
+
+    // Same provinces and states as the staff portal's plate search, copied from
+    // its list so the two can never drift apart. Labels read "NL - Newfoundland
+    // & Labrador" here.
+    document.querySelectorAll('#staffProvinceSelect optgroup').forEach(group => {
+      const copy = document.createElement('optgroup');
+      copy.label = group.label;
+      group.querySelectorAll('option').forEach(opt => {
+        const o = document.createElement('option');
+        o.value = opt.value;
+        o.textContent = opt.textContent.replace(/\s*\u2014\s*/, ' - ');
+        copy.appendChild(o);
+      });
+      plateProvinceEl.appendChild(copy);
+    });
     const resCodeEl       = document.getElementById('resCodeInput');
     const manualToggleBtn = document.getElementById('manualToggleBtn');
     const manualLicenseForm = document.getElementById('manualLicenseForm');
@@ -1801,19 +1832,23 @@
       const rawFirstName = document.getElementById('firstNameInput').value.trim();
       const rawLastName  = document.getElementById('lastNameInput').value.trim();
       const rawPlate    = plateEl.value.trim().toUpperCase();
+      const rawProvince = plateProvinceEl.value;
       s1Error.textContent = '';
+      customerSession = null;
 
       if (!rawResCode)                    { s1Error.textContent = 'Please enter your reservation code.'; return; }
       if (!rawFirstName || !rawLastName)  { s1Error.textContent = 'Please enter your first and last name.'; return; }
       if (!rawPlate)                      { s1Error.textContent = 'Please enter the license plate number.'; return; }
+      if (!rawProvince)                   { s1Error.textContent = 'Please choose the province or state on the license plate.'; return; }
 
       findBtn.disabled = true;
       findBtn.innerHTML = '<span class="spinner"></span>Searching…';
 
       let result = null;
       try {
-        result = await lookupReservation(rawResCode, rawFirstName, rawLastName, rawPlate);
+        result = await lookupReservation(rawResCode, rawFirstName, rawLastName, rawPlate, rawProvince);
       } catch (e) {
+        console.warn('lookupReservation failed:', e);
         result = null;
       }
 
@@ -1828,6 +1863,9 @@
         s1Error.textContent = result.error;
         return;
       }
+
+      const { session, ...found } = result;
+      customerSession = session;
 
       // Save scanned / manually entered license data to the reservation.
       // Only include fields that have a value so we never overwrite existing
@@ -1857,8 +1895,8 @@
         }
       }
 
-      vehicle  = result;
-      flowType = result.detectedFlow || 'pickup';
+      vehicle  = found;
+      flowType = found.detectedFlow || 'pickup';
 
       if (flowType === 'return') {
         // Reset return flow state
@@ -1923,72 +1961,58 @@
       }
     });
 
-    async function lookupReservation(resCode, firstName, lastName, plate) {
-      const normName = (s) => String(s || '').trim().toLowerCase();
-
-      // Format resCode to stored format: strip non-alphanumeric, uppercase,
-      // then insert spaces after 3rd and 6th characters (e.g. EAM224575 → EAM 224 575)
-      const rawCode = String(resCode || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-      resCode = rawCode.length >= 7
-        ? `${rawCode.slice(0, 3)} ${rawCode.slice(3, 6)} ${rawCode.slice(6)}`
-        : rawCode;
-
+    // Every read here goes through a database function (fleetr-infra,
+    // customer_lookup_functions.sql). This page runs with the anon key only,
+    // and anon can read none of reservations, fleet or rental_agreements. The
+    // functions check what the customer typed and answer for one company only.
+    //
+    // A failed call is thrown, so the caller says "Unable to connect" rather
+    // than blaming what the customer typed. A null answer means no match.
+    async function lookupReservation(resCode, firstName, lastName, plate, province) {
       console.log('--- lookupReservation ---');
       console.log('Input resCode (entered):', resCode);
-      console.log('Input firstName (entered):', firstName);
-      console.log('Input lastName (entered):', lastName);
-      console.log('Input plate (entered):', plate);
+      console.log('Input plate (entered):', plate, '| province:', province);
 
-      // Step 1: reservation code must exist
-      const { data: resData, error: resErr } = await supabase
-        .from('reservations')
-        .select('*')
-        .eq('resCode', resCode)
-        .maybeSingle();
-
-      console.log('Step 1 — resCode lookup:', { resCode, resErr, resData });
-      if (resErr || !resData) {
-        console.log('Step 1 FAILED — no matching reservation found for resCode:', resCode);
-        return { error: 'Reservation code not found. Please check and try again.' };
+      // Step 1: code and name together. The function normalises the code to
+      // the stored "ABC 123 456" form and compares the name ignoring case. A
+      // wrong code and a wrong name are deliberately indistinguishable, so
+      // there is one message for both.
+      const { data: res, error: resErr } = await supabase.rpc('lookup_reservation', {
+        code: resCode, first_name: firstName, last_name: lastName,
+      });
+      if (resErr) throw resErr;
+      console.log('Step 1 - reservation found:', !!res);
+      if (!res) {
+        return { error: 'Reservation not found. Check the reservation code and the name on it, then try again.' };
       }
 
-      // Step 2: first name and last name must match the reservation on file
-      const enteredFirst = normName(firstName);
-      const enteredLast  = normName(lastName);
-      const storedFirst  = normName(resData.firstName);
-      const storedLast   = normName(resData.lastName);
-      console.log('Step 2 — name comparison:');
-      console.log('  Entered first:', enteredFirst, '| On file:', storedFirst, '| Match:', storedFirst === enteredFirst);
-      console.log('  Entered last:', enteredLast,  '| On file:', storedLast,  '| Match:', storedLast  === enteredLast);
-      if (!storedFirst || !storedLast || storedFirst !== enteredFirst || storedLast !== enteredLast) {
-        console.log('Step 2 FAILED — name mismatch');
-        return { error: 'Name does not match this reservation. Please check and try again.' };
-      }
-
-      // Step 3: plate must exist in the fleet
-      const { data: fleetData } = await supabase
-        .from('fleet')
-        .select('*');
-      const matchedVehicle = fleetData?.find((v) => normalizePlate(v.plate) === normalizePlate(plate));
-      console.log('Step 3 — plate comparison:');
-      console.log('  Entered (raw):', plate);
-      console.log('  Entered (normalized):', normalizePlate(plate));
-      console.log('  Fleet plates (normalized):', fleetData?.map((v) => normalizePlate(v.plate)));
-      console.log('  Match found:', !!matchedVehicle, matchedVehicle ? '→ ' + matchedVehicle.plate : '');
+      // Step 2: the vehicle, by plate and province, in this reservation's
+      // company only. Another company's vehicle with the same plate never
+      // matches.
+      const { data: matchedVehicle, error: vehErr } = await supabase.rpc('lookup_vehicle_by_plate', {
+        plate, province, operator_id: res.operatorId,
+      });
+      if (vehErr) throw vehErr;
+      console.log('Step 2 - vehicle found:', !!matchedVehicle, matchedVehicle ? '-> ' + matchedVehicle.plate : '');
       if (!matchedVehicle) {
-        console.log('Step 3 FAILED — plate not found in fleet');
-        return { error: 'License plate not found in our fleet. Please check and try again.' };
+        return { error: 'License plate not found in our fleet. Check the plate and province, then try again.' };
       }
 
-      // All three validated — check rental_agreements for current status to determine flow
-      const { data: raRow } = await supabase
-        .from('rental_agreements')
-        .select('id, rentalAgreementStatus, "fuelAtPickup"')
-        .eq('resCode', resCode)
-        .maybeSingle();
-      const raStatus       = raRow?.rentalAgreementStatus || '';
+      // Step 3: whether this is a pickup or a return, from the reservation's
+      // own rental agreement. Checked with the same code and name again.
+      const { data: status, error: statusErr } = await supabase.rpc('lookup_rental_status', {
+        code: resCode, first_name: firstName, last_name: lastName,
+      });
+      if (statusErr) throw statusErr;
+      if (!status) {
+        return { error: 'Reservation not found. Check the reservation code and the name on it, then try again.' };
+      }
+      resCode = res.resCode;
+      const raRow          = status.rentalAgreement;
+      const raStatus       = raRow?.status || '';
       const raId           = raRow?.id || null;
       const raFuelAtPickup = raRow?.fuelAtPickup || null;
+      const session        = { operatorId: res.operatorId, locationId: res.locationId, reservation: res };
 
       // If an RA exists but is NOT open_rental_agreement, block — can't pick up or return
       if (raStatus && raStatus !== 'open_rental_agreement') {
@@ -1999,7 +2023,7 @@
       const detectedFlow = raStatus === 'open_rental_agreement' ? 'return' : 'pickup';
       console.log('All steps passed — detectedFlow:', detectedFlow, '| resolvedResCode:', resCode, '| raId:', raId);
 
-      return { ...matchedVehicle, detectedFlow, resolvedResCode: resCode, raId, raFuelAtPickup };
+      return { ...matchedVehicle, detectedFlow, resolvedResCode: resCode, raId, raFuelAtPickup, session };
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -2262,16 +2286,10 @@
           } else {
             // ── Pickup flow: fetch reservation details then insert a full rental agreement ──
 
-            // Re-fetch the reservation so we have customer/booking data at submit time
-            let resData = null;
-            try {
-              const { data } = await supabase
-                .from('reservations')
-                .select('*')
-                .eq('resCode', resolvedResCode)
-                .maybeSingle();
-              resData = data;
-            } catch (_) {}
+            // The reservation as lookup_reservation returned it at the start of
+            // this session. Re-reading the table here returned nothing: anon
+            // cannot read reservations.
+            const resData = customerSession?.reservation || null;
 
             const fuelStr = FUEL_LABELS[fuelLevel] || 'Full';
 
@@ -2621,6 +2639,8 @@
       manualLicenseForm.style.display = 'none';
       manualToggleBtn.textContent = 'Enter details manually';
       scannedProvince = '';
+      plateProvinceEl.value = '';
+      customerSession = null;
       findBtn.disabled    = false;
       findBtn.textContent = 'Start Rental Process';
       vehicle   = null;
@@ -2645,6 +2665,8 @@
       manualLicenseForm.style.display = 'none';
       manualToggleBtn.textContent = 'Enter details manually';
       scannedProvince = '';
+      plateProvinceEl.value = '';
+      customerSession = null;
       findBtn.disabled    = false;
       findBtn.textContent = 'Start Rental Process';
       vehicle   = null;
@@ -2665,6 +2687,7 @@
     // ── Staff state ──────────────────────────────────────────────────────────
     let staffUser          = null;  // authenticated user object from Supabase
     let staffSearchedPlate = '';
+    let staffSearchedProvince = '';  // province chosen on the plate search
     let staffRAs           = [];    // rental agreements found for searched plate
     let staffSelectedRA    = null;  // RA open in detail view
     let staffFleetVehicle  = null;  // fleet record for the selected RA's plate
@@ -2779,15 +2802,41 @@
     async function doStaffPlateSearch() {
       const raw    = document.getElementById('staffPlateInput').value.trim();
       const plate  = raw.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      const province = document.getElementById('staffProvinceSelect').value;
       const errEl  = document.getElementById('ss-plate-error');
       errEl.textContent = '';
 
-      if (!plate) { errEl.textContent = 'Please enter a plate number.'; return; }
+      if (!plate)    { errEl.textContent = 'Please enter a plate number.'; return; }
+      if (!province) { errEl.textContent = 'Please choose the province or state on the plate.'; return; }
+
+      // The vehicle is found in the signed-in staff member's own company only,
+      // using the operatorId staff_login returned. Without one there is no
+      // company to search.
+      const operatorId = staffUser?.operatorId || null;
+      if (!operatorId) { errEl.textContent = 'Your account is not linked to a company. Sign in again.'; return; }
 
       const searchBtn = document.getElementById('staffSearchBtn');
       searchBtn.disabled = true;
       searchBtn.innerHTML = '<span class="spinner"></span>Searching…';
 
+      const { data: foundVehicle, error: vehErr } = await supabase.rpc('lookup_vehicle_by_plate', {
+        plate, province, operator_id: operatorId,
+      });
+      if (vehErr || !foundVehicle) {
+        searchBtn.disabled = false;
+        searchBtn.textContent = 'Search';
+        if (vehErr) console.warn('staff vehicle lookup error:', vehErr);
+        errEl.textContent = vehErr
+          ? 'Search failed. Please try again.'
+          : 'No vehicle with that plate and province in your company.';
+        return;
+      }
+      staffSearchedProvince = province;
+
+      // Agreements are still read directly. None of the lookup functions can
+      // list a vehicle's agreements, and anon reads of this table return
+      // nothing, so this list stays empty until staff sign-in gives the portal
+      // a real session. Filtered to the vehicle's own plate as stored.
       const { data, error } = await supabase
         .from('rental_agreements')
         .select('*')
@@ -2803,7 +2852,7 @@
       }
 
       const norm  = p => String(p || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
-      staffRAs           = (data || []).filter(ra => norm(ra.plate) === norm(plate));
+      staffRAs           = (data || []).filter(ra => norm(ra.plate) === norm(foundVehicle.plate));
       staffSearchedPlate = plate;
 
       document.getElementById('ss-list-title').textContent = raw.toUpperCase();
@@ -2960,18 +3009,17 @@
       staffChargesRaId = null;
       staffLineItems   = [];
 
-      // Fetch fleet record for the plate so we can show previous damage
+      // Fetch the vehicle for the plate so we can show previous damage. Same
+      // lookup as the plate search: this staff member's company, and the
+      // province they searched with.
       staffFleetVehicle = null;
       const plate = staffSelectedRA?.plate;
-      if (plate) {
-        const { data: fleetRows } = await supabase
-          .from('fleet')
-          .select('*')
-          .ilike('plate', plate.replace(/[^A-Za-z0-9]/g, ''))
-          .limit(5);
-        const norm = p => String(p || '').replace(/[^A-Z0-9]/g, '').toUpperCase();
-        staffFleetVehicle = (fleetRows || []).find(r => norm(r.plate) === norm(plate)) || null;
-        if (!staffFleetVehicle && fleetRows?.length) staffFleetVehicle = fleetRows[0];
+      if (plate && staffUser?.operatorId && staffSearchedProvince) {
+        const { data: fv, error: fvErr } = await supabase.rpc('lookup_vehicle_by_plate', {
+          plate, province: staffSearchedProvince, operator_id: staffUser.operatorId,
+        });
+        if (fvErr) console.warn('staff vehicle lookup error:', fvErr);
+        staffFleetVehicle = fv || null;
       }
 
       renderStaffReturnPage();
