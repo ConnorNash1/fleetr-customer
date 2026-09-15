@@ -256,6 +256,19 @@
     #s5 input[type="number"]::placeholder { color: #aab4bf; }
 
     /* ── Info box ─────────────────────────────────────────────── */
+    /* Shown on the done screens when a photo failed to upload. */
+    .upload-warning {
+      background: #fff8e6;
+      border: 1px solid #f3d38a;
+      color: #7a5a10;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      margin: 0 0 16px;
+      font-family: 'Inter', sans-serif;
+      text-align: left;
+    }
     .info-box {
       background: #ffffff;
       border: 1px solid #d0d8e0;
@@ -1085,6 +1098,7 @@
       </div>
 
       <div class="spacer"></div>
+      <div class="error-msg" id="s6Error"></div>
       <button class="btn btn-secondary" id="clearSigBtn">Clear Signature</button>
       <button class="btn btn-primary" id="submitBtn">Submit Inspection</button>
     </div>
@@ -1099,6 +1113,7 @@
       <h1 id="s7Title">You're Good to Go!</h1>
       <p class="subtitle" id="s7Subtitle">Your inspection is complete and on file. Enjoy your rental.</p>
       <div class="done-summary" id="doneSummary"></div>
+      <div class="upload-warning" id="s7PhotoWarning" role="status" hidden></div>
       <div class="spacer"></div>
       <button class="btn btn-primary" id="s7DoneBtn">Done</button>
     </div>
@@ -1228,6 +1243,7 @@
       <div class="done-icon"><svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="29" stroke="#42a4ff" stroke-width="2.5"/><path d="M20 32l9 9 15-16" stroke="#42a4ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <h1>Return Submitted</h1>
       <p class="subtitle">Your return has been submitted.<br/>Please leave your keys with a staff member.</p>
+      <div class="upload-warning" id="s11PhotoWarning" role="status" hidden></div>
       <div class="spacer"></div>
       <button class="btn btn-primary" id="s11DoneBtn">Done</button>
     </div>
@@ -1492,7 +1508,7 @@
     // is found and kept for the rest of the session, so every later step knows
     // which company it is working in instead of guessing from a plate or code.
     // Cleared when the next customer starts.
-    let customerSession = null;   // { operatorId, locationId, reservation }
+    let customerSession = null;   // { operatorId, locationId, reservation, proof }
     let photos    = [];
     let odoPhoto  = null;
     let mileage   = '';
@@ -1577,26 +1593,6 @@
         return { patch, due: true, since, interval, reason: 'PM due' };
       }
       return { patch, due: false, since, interval, reason: 'not yet due' };
-    }
-
-    // Applies the return-time fleet update, folding in the PM decision.
-    async function applyReturnFleetUpdate(vehicleRow, odometerKm, defaultStatus) {
-      const result = evaluatePm(vehicleRow, odometerKm);
-      const patch = { status: defaultStatus, ...(result ? result.patch : {}) };
-      if (result) {
-        console.log('PM check:', {
-          plate: vehicleRow?.plate, odometerKm,
-          lastPmOdometer: vehicleRow?.lastPmOdometer,
-          pmIntervalKm: vehicleRow?.pmIntervalKm,
-          ...result, patch,
-        });
-      }
-      const q = vehicleRow?.id
-        ? supabase.from('fleet').update(patch).eq('id', vehicleRow.id)
-        : supabase.from('fleet').update(patch).eq('plate', vehicleRow.plate);
-      const res = await q;
-      if (res.error) console.warn('fleet return update FAILED:', res.error);
-      return res;
     }
 
     // Region comes from the vehicle's province — the only geographic field that
@@ -1913,31 +1909,23 @@
       photos = [];
       renderPhotoGrid();
 
-      // Save scanned / manually entered license data to the reservation.
-      // Only include fields that have a value so we never overwrite existing
-      // data with blanks if the customer only filled in some fields manually.
-      const licenseUpdate = {};
-      const dlVal      = document.getElementById('licenseInput').value.trim().toUpperCase();
-      const dobVal     = document.getElementById('dobInput').value.trim();
-      const expiryVal  = document.getElementById('dlExpiryInput').value.trim();
-      const addressVal = document.getElementById('addressInput').value.trim();
-      const postalVal  = document.getElementById('postalCodeInput').value.trim();
-      if (dlVal)            licenseUpdate.licenseNumber = dlVal;
-      if (dobVal)           licenseUpdate.dob           = dobVal;
-      if (expiryVal)        licenseUpdate.dlExpiry      = expiryVal;
-      if (addressVal)       licenseUpdate.address       = addressVal;
-      if (postalVal)        licenseUpdate.postalCode    = postalVal;
-      if (scannedProvince)  licenseUpdate.province      = scannedProvince;
-
-      if (Object.keys(licenseUpdate).length > 0) {
-        const { error: saveErr } = await supabase
-          .from('reservations')
-          .update(licenseUpdate)
-          .eq('resCode', result.resolvedResCode);
-        if (saveErr) {
-          console.warn('License data save FAILED:', saveErr.message, licenseUpdate);
+      // Save the scanned or typed licence details to the reservation, through
+      // save_reservation_licence (fleetr-infra). It re-checks the code and
+      // name, writes only licenseNumber, licenseExpiry and licenseProvince, and
+      // skips blanks, so a partly filled form never overwrites what is on file.
+      // Date of birth, address and postal code stay on the form but are not
+      // sent: reservations has no columns for them yet.
+      const dlVal     = document.getElementById('licenseInput').value.trim();
+      const expiryVal = document.getElementById('dlExpiryInput').value.trim();
+      if (dlVal || expiryVal || scannedProvince) {
+        const { data: licRes, error: licErr } = await supabase.rpc('save_reservation_licence', {
+          code: session.proof.code, first_name: session.proof.firstName, last_name: session.proof.lastName,
+          licence_number: dlVal || null, licence_expiry: expiryVal || null, licence_province: scannedProvince || null,
+        });
+        if (licErr || !licRes?.ok) {
+          console.warn('Licence save FAILED:', licErr || licRes);
         } else {
-          console.log('License data saved to reservation:', result.resolvedResCode, licenseUpdate);
+          console.log('Licence saved to reservation:', licRes.saved);
         }
       }
 
@@ -1973,30 +1961,20 @@
         document.getElementById('s10bError').textContent               = '';
         goTo('s8');
       } else {
-        // Soft block on starting a pickup for a vehicle that is due for
-        // preventative maintenance. Raised here, at the point the vehicle is
-        // identified, rather than at submit, so nobody completes a full
-        // inspection only to be stopped at the end. Cancelling is the default:
-        // dismissing the dialog abandons the pickup and the vehicle stays put.
-        // Overriding changes nothing about needsPm, so the vehicle keeps
-        // showing under Preventative Maintenance either way.
+        // A vehicle flagged for preventative maintenance cannot go out through
+        // this app: opening a rental on it is Admin-only in the database, and
+        // complete_pickup refuses it as needs_pm. So the customer is stopped
+        // here, as soon as the vehicle is identified, with the same "see
+        // staff" message submit would give, instead of completing the whole
+        // inspection first. There is no continue-anyway option.
         if (vehicle?.needsPm) {
-          const proceed = window.confirm(
-            `${vehicle.plate} is flagged for preventative maintenance.\n\n` +
-            `It is due for service and should normally be sent to PM before going out again.\n\n` +
-            `OK: continue this pickup anyway. The PM flag stays on.\n` +
-            `Cancel: stop and do not rent this vehicle.`
-          );
-          console.log('PM soft block on pickup:', { plate: vehicle.plate, needsPm: vehicle.needsPm, proceed });
-          if (!proceed) {
-            findBtn.disabled = false;
-            findBtn.textContent = 'Start Rental Process';
-            document.getElementById('s1Error').textContent =
-              `${vehicle.plate} is due for preventative maintenance. Pickup cancelled.`;
-            vehicle = null;
-            flowType = 'pickup';
-            return;
-          }
+          console.log('PM block on pickup:', { plate: vehicle.plate, needsPm: vehicle.needsPm });
+          findBtn.disabled = false;
+          findBtn.textContent = 'Start Rental Process';
+          document.getElementById('s1Error').textContent = writeErrorMessage('needs_pm');
+          vehicle = null;
+          flowType = 'pickup';
+          return;
         }
         configureFlow();
         buildDamageScreen();
@@ -2055,7 +2033,13 @@
       const raStatus       = raRow?.status || '';
       const raId           = raRow?.id || null;
       const raFuelAtPickup = raRow?.fuelAtPickup || null;
-      const session        = { operatorId: res.operatorId, locationId: res.locationId, reservation: res };
+      // The code and name that proved this reservation, kept so the pickup and
+      // return writes can prove it again: every write function re-checks them
+      // rather than trusting anything the page holds.
+      const session        = {
+        operatorId: res.operatorId, locationId: res.locationId, reservation: res,
+        proof: { code: res.resCode, firstName, lastName },
+      };
 
       // If an RA exists but is NOT open_rental_agreement, block — can't pick up or return
       if (raStatus && raStatus !== 'open_rental_agreement') {
@@ -2451,89 +2435,125 @@
 
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<span class="spinner"></span>Submitting…';
+      const s6Error = document.getElementById('s6Error');
+      s6Error.textContent = '';
 
-      await submitInspection();
+      const outcome = await submitInspection();
+
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit Inspection';
+      if (!outcome.ok) {
+        s6Error.textContent = outcome.message;
+        return;
+      }
 
       buildDoneScreen();
+      showPhotoUploadWarning('s7PhotoWarning', outcome.photosFailed);
       goTo('s7');
     });
 
     // ════════════════════════════════════════════════════════════════════════
-    // Submit — write inspection result to Supabase
+    // Photo upload: straight to the damage-photos bucket
     // ════════════════════════════════════════════════════════════════════════
-    async function submitInspection() {
-      // Reservation code resolved automatically from backend during lookup
-      const resolvedResCode = vehicle?.resolvedResCode || null;
-
-      try {
-        if (resolvedResCode) {
-          if (flowType === 'return') {
-            // ── Return flow: mark rental agreement as close_pending ───────────
-            await supabase
-              .from('rental_agreements')
-              .update({ rentalAgreementStatus: 'close_pending' })
-              .eq('resCode', resolvedResCode);
-            // Ready Returns, unless the odometer says PM is due
-            if (vehicle?.id || vehicle?.plate) {
-              const odoKm = mileage ? parseInt(mileage, 10) : null;
-              await applyReturnFleetUpdate(vehicle, odoKm, 'Ready Returns');
-            }
-          } else {
-            // ── Pickup flow: fetch reservation details then insert a full rental agreement ──
-
-            // The reservation as lookup_reservation returned it at the start of
-            // this session. Re-reading the table here returned nothing: anon
-            // cannot read reservations.
-            const resData = customerSession?.reservation || null;
-
-            const fuelStr = FUEL_LABELS[fuelLevel] || 'Full';
-
-            const raInsertPayload = {
-              resCode:               resolvedResCode,
-              rentalAgreementStatus: 'open_rental_agreement',
-              customer:              resData?.customer   || null,
-              phone:                 resData?.phone      || null,
-              email:                 resData?.email      || null,
-              pickupDate:            resData?.date       || null,
-              returnDate:            resData?.returnDate || null,
-              location:              resData?.location   || null,
-              source:                resData?.source     || null,
-              dailyRate:             resData?.dailyRate  || null,
-              vehicleClass:          resData?.vehicleClass || vehicle?.vehicleClass || null,
-              winterTires:           resData?.winterTires  || vehicle?.winterTires  || null,
-              plate:                 vehicle?.plate || null,
-              make:                  vehicle?.make  || null,
-              model:                 vehicle?.model || null,
-              mileage:               mileage ? parseInt(mileage, 10) : null,
-              fuelAtPickup:          fuelStr,
-              photoCount:            photos.length,
-              inspectedAt:           new Date().toISOString(),
-            };
-            console.log('rental_agreements insert payload:', raInsertPayload);
-
-            const raInsertRes = await supabase
-              .from('rental_agreements')
-              .insert(raInsertPayload);
-            console.log('rental_agreements insert response:', raInsertRes);
-
-            // Update fleet vehicle status to On Rent
-            if (vehicle?.id) {
-              await supabase.from('fleet').update({ status: 'On Rent' }).eq('id', vehicle.id);
-            } else if (vehicle?.plate) {
-              await supabase.from('fleet').update({ status: 'On Rent' }).eq('plate', vehicle.plate);
-            }
-
-            // Mark the reservation as converted so it drops off the internal
-            // system's active reservations list
-            await supabase
-              .from('reservations')
-              .update({ rentalAgreementStatus: 'open_rental_agreement' })
-              .eq('resCode', resolvedResCode);
-          }
+    // complete_pickup and complete_return return photoPath,
+    // <operatorId>/rental-agreements/<rentalAgreementId>/, built by the
+    // database from the agreement it just wrote. A storage policy lets this
+    // page add files there, and only there, for two hours afterwards; it can
+    // never read, replace or delete them. Every name is new, so nothing is
+    // ever overwritten.
+    //
+    // A photo that fails is tried once more, then logged and counted; the done
+    // screen tells the customer to have staff check the photos. The pickup or
+    // return itself is already saved by then and is not undone.
+    async function uploadAgreementPhotos(photoPath, items) {
+      const stamp = Date.now();
+      let uploaded = 0;
+      const failed = [];
+      for (const [i, item] of items.entries()) {
+        const path = `${photoPath}${item.name}-${stamp}-${i + 1}.jpg`;
+        let error = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          ({ error } = await supabase.storage.from('damage-photos')
+            .upload(path, item.file, { contentType: item.file.type || 'image/jpeg', upsert: false }));
+          if (!error) break;
         }
-      } catch (e) {
-        console.warn('Supabase submit failed (offline?):', e);
+        if (error) { failed.push(path); console.warn('photo upload FAILED:', path, error); }
+        else uploaded++;
       }
+      console.log('photo upload:', { photoPath, uploaded, failed: failed.length });
+      return { uploaded, failed };
+    }
+
+    // Tells the customer on the done screen when photos did not make it, so
+    // staff can check them, instead of the failure only reaching the console.
+    // Hidden again when everything uploaded.
+    function showPhotoUploadWarning(elementId, failedCount) {
+      const el = document.getElementById(elementId);
+      el.hidden = !(failedCount > 0);
+      el.textContent = failedCount > 0
+        ? `${failedCount === 1 ? '1 photo' : `${failedCount} photos`} did not upload. Please ask a member of staff to check the photos for this rental.`
+        : '';
+    }
+
+    // Messages for the reasons complete_pickup and complete_return give.
+    const WRITE_ERROR_MESSAGES = {
+      needs_pm:                    'This vehicle is due for maintenance and cannot go out yet. Please see a member of staff.',
+      already_processed:           'This reservation has already been picked up. Please see a member of staff.',
+      vehicle_not_found:           'We could not match this vehicle to your reservation. Please see a member of staff.',
+      not_open:                    'This rental is not open, so it cannot be returned here. Please see a member of staff.',
+      invalid_signature:           'Please sign again, then submit.',
+      invalid_odometer:            'Please go back and check the odometer reading.',
+      invalid_fuel_level:          'Please go back and check the gas level.',
+      damage_description_required: 'Please go back and describe the damage.',
+    };
+    const writeErrorMessage = (code) =>
+      WRITE_ERROR_MESSAGES[code] || 'Something went wrong saving this. Please try again or see a member of staff.';
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Submit: pickup, through complete_pickup
+    // ════════════════════════════════════════════════════════════════════════
+    // The database re-checks the code and name, takes the company from the
+    // reservation, checks the vehicle is that company's own, and opens the
+    // rental agreement, puts the vehicle On Rent and marks the reservation
+    // converted in one go. Returns { ok, message } for the submit button.
+    //
+    // A vehicle flagged for maintenance comes back as needs_pm: opening a
+    // rental on it is for an Admin to decide, so the customer is sent to staff
+    // and nothing is opened.
+    async function submitInspection() {
+      const proof = customerSession?.proof;
+      if (!proof || !vehicle?.id) {
+        return { ok: false, message: 'Your session has expired. Please start again.' };
+      }
+
+      const { data: result, error } = await supabase.rpc('complete_pickup', {
+        code:        proof.code,
+        first_name:  proof.firstName,
+        last_name:   proof.lastName,
+        vehicle_id:  String(vehicle.id),
+        odometer:    mileage ? parseInt(mileage, 10) : null,
+        fuel_level:  FUEL_LABELS[fuelLevel] || 'Full',
+        signature:   canvas.toDataURL('image/png'),
+        photo_count: photos.length,
+      });
+      if (error) {
+        console.warn('complete_pickup failed:', error);
+        return { ok: false, message: 'Unable to connect. Please try again.' };
+      }
+      if (!result) {
+        return { ok: false, message: 'We could not confirm this reservation. Please start again or see a member of staff.' };
+      }
+      if (!result.ok) {
+        console.log('complete_pickup refused:', result.error);
+        return { ok: false, message: writeErrorMessage(result.error) };
+      }
+      console.log('complete_pickup ok:', result.rentalAgreementId);
+
+      const upload = await uploadAgreementPhotos(result.photoPath, [
+        ...photos.map(file => ({ name: 'pickup-damage', file })),
+        ...(odoPhoto ? [{ name: 'pickup-odometer', file: odoPhoto }] : []),
+      ]);
+      return { ok: true, photosFailed: upload.failed.length };
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -2729,79 +2749,65 @@
     // ════════════════════════════════════════════════════════════════════════
     // submitReturn — write return data to Supabase then go to s11
     // ════════════════════════════════════════════════════════════════════════
+    // Through complete_return. The database re-checks the code and name, finds
+    // this reservation's open agreement in its own company, moves it to
+    // close_pending, works out any gas charge itself from the location's
+    // prices, and puts the vehicle in Ready Returns with its PM check. The
+    // return flow has no signature step, so none is sent. Moves on to the done
+    // screen only once the return is saved; a refusal is shown here instead.
     async function submitReturn() {
-      const resolvedResCode = vehicle?.resolvedResCode || null;
-      const raId            = vehicle?.raId            || null;
+      const proof   = customerSession?.proof;
+      const errEl   = document.getElementById('s10bError');
+      const locBtn  = document.getElementById('s10bSubmit');
+      errEl.textContent = '';
 
-      // Disable the location submit button while saving
-      const locBtn = document.getElementById('s10bSubmit');
+      if (!proof) {
+        errEl.textContent = 'Your session has expired. Please start again.';
+        return;
+      }
+
       locBtn.disabled = true;
       locBtn.innerHTML = '<span class="spinner"></span>Submitting…';
 
-      try {
-        if (resolvedResCode || raId) {
-          const fuelStr = FUEL_LABELS[returnFuelLevel] || 'Full';
+      const { data: result, error } = await supabase.rpc('complete_return', {
+        code:               proof.code,
+        first_name:         proof.firstName,
+        last_name:          proof.lastName,
+        odometer:           returnMileage ? parseInt(returnMileage, 10) : null,
+        fuel_level:         FUEL_LABELS[returnFuelLevel] || 'Full',
+        has_damage:         returnHasDamage,
+        damage_description: returnHasDamage ? returnDamageDescription : null,
+        vehicle_location:   returnVehicleLocation || null,
+        signature:          null,
+        odo_photo_count:    returnOdoPhoto  ? 1 : 0,
+        fuel_photo_count:   returnFuelPhoto ? 1 : 0,
+        damage_photo_count: returnHasDamage ? returnDamagePhotos.length : 0,
+      });
 
-          const raUpdate = {
-            rentalAgreementStatus:   'close_pending',
-            returnedAt:              new Date().toISOString(),
-            returnMileage:           returnMileage ? parseInt(returnMileage, 10) : null,
-            returnFuelLevel:         fuelStr,
-            returnOdoPhotoCount:     returnOdoPhoto  ? 1 : 0,
-            returnFuelPhotoCount:    returnFuelPhoto ? 1 : 0,
-            returnHasDamage:         returnHasDamage,
-            returnDamageDescription: returnHasDamage ? returnDamageDescription : null,
-            returnPhotoCount:        returnHasDamage ? returnDamagePhotos.length : 0,
-            returnVehicleLocation:   returnVehicleLocation || null,
-          };
-
-          // Gas collection — same rules as the staff return flow: any missing
-          // input leaves gasOwed alone rather than guessing at a charge.
-          const gasSettings = await loadGasSettings();
-          if (gasSettings) {
-            const region = vehicle?.province || gasSettings.defaultRegion;
-            const gas = calculateGasCharge({
-              pickupFuel:     vehicle?.raFuelAtPickup,
-              returnFuel:     fuelStr,
-              tankSizeLiters: vehicle?.tankSizeLiters,
-              pricePerLiter:  region ? gasSettings.prices?.[region] : null,
-              markupPercent:  gasSettings.markupPercent,
-            });
-            if (gas) {
-              raUpdate.gasOwed = gas.charge.toFixed(2);
-              console.log('gas charge calculated:', {
-                region, litersShort: gas.litersShort, charge: gas.charge,
-              });
-            } else {
-              console.log('gas charge skipped: missing tank size, regional price, or no fuel gap');
-            }
-          }
-
-          console.log('submitReturn — RA update payload:', raUpdate);
-
-          // Prefer filtering by primary key (id) for reliability; fall back to resCode
-          let raQuery = supabase.from('rental_agreements').update(raUpdate);
-          if (raId) {
-            raQuery = raQuery.eq('id', raId);
-          } else {
-            raQuery = raQuery.eq('resCode', resolvedResCode);
-          }
-          const raRes = await raQuery;
-          console.log('submitReturn — RA update response:', raRes);
-          if (raRes.error) {
-            console.warn('submitReturn — RA update FAILED:', raRes.error);
-          }
-
-          // fleet vehicle → Ready Returns, unless the odometer says PM is due
-          if (vehicle?.id || vehicle?.plate) {
-            const odoKm = returnMileage ? parseInt(returnMileage, 10) : null;
-            const fleetRes = await applyReturnFleetUpdate(vehicle, odoKm, 'Ready Returns');
-            console.log('submitReturn, fleet update:', fleetRes);
-          }
-        }
-      } catch (e) {
-        console.warn('submitReturn failed (offline?):', e);
+      let message = null;
+      if (error) {
+        console.warn('complete_return failed:', error);
+        message = 'Unable to connect. Please try again.';
+      } else if (!result) {
+        message = 'We could not confirm this reservation. Please start again or see a member of staff.';
+      } else if (!result.ok) {
+        console.log('complete_return refused:', result.error);
+        message = writeErrorMessage(result.error);
       }
+      if (message) {
+        locBtn.disabled = false;
+        locBtn.textContent = 'Submit Return';
+        errEl.textContent = message;
+        return;
+      }
+      console.log('complete_return ok:', { id: result.rentalAgreementId, gasOwed: result.gasOwed, vehicleUpdated: result.vehicleUpdated });
+
+      const upload = await uploadAgreementPhotos(result.photoPath, [
+        ...(returnOdoPhoto  ? [{ name: 'return-odometer', file: returnOdoPhoto }]  : []),
+        ...(returnFuelPhoto ? [{ name: 'return-fuel',     file: returnFuelPhoto }] : []),
+        ...(returnHasDamage ? returnDamagePhotos.map(file => ({ name: 'return-damage', file })) : []),
+      ]);
+      showPhotoUploadWarning('s11PhotoWarning', upload.failed.length);
 
       locBtn.disabled = false;
       locBtn.textContent = 'Submit Return';
