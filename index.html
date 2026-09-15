@@ -299,53 +299,6 @@
       padding: 18px 0 24px;
     }
 
-    /* ── Angle grid ───────────────────────────────────────────── */
-    .angles-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 28px;
-    }
-    .angle-item {
-      background: #ffffff;
-      border: 1px solid #d0d8e0;
-      border-radius: 11px;
-      padding: 10px;
-      text-align: center;
-      font-size: 0.85rem;
-      font-family: 'Inter', sans-serif;
-      color: #1F1E1D;
-      line-height: 1.4;
-      font-weight: 500;
-    }
-
-    /* Walkaround: each angle tile opens the live camera and shows its photo. */
-    button.angle-item {
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      min-height: 96px;
-      width: 100%;
-    }
-    button.angle-item img {
-      width: 100%;
-      height: 72px;
-      object-fit: cover;
-      border-radius: 7px;
-      display: block;
-    }
-    .angle-item__hint {
-      font-size: 0.72rem;
-      color: #6b8090;
-      font-weight: 400;
-    }
-    .angle-item--done {
-      border-color: #42a4ff;
-    }
-
     /* ── Live camera ──────────────────────────────────────────── */
     /* Above everything, the staff overlay included, since both the customer
        screens and the staff portal open it. */
@@ -1045,8 +998,8 @@
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s2">
       <button class="return-back-btn" id="s2Back">← Back</button>
-      <div class="step-label">Step 1 of 5</div>
-      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div></div>
+      <div class="step-label">Step 1 of 4</div>
+      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div></div>
       <h1>Pre-Existing Damage</h1>
 
       <div class="vehicle-card" id="vehicleCard">
@@ -1068,50 +1021,22 @@
 
 
     <!-- ═══════════════════════════════════════════════════════════
-         Screen 3: Walkaround Photos
-    ═══════════════════════════════════════════════════════════ -->
-    <div class="screen" id="s3">
-      <button class="return-back-btn" id="s3Back">← Back</button>
-      <div class="step-label">Step 2 of 5</div>
-      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div></div>
-      <h1>Walkaround Photos</h1>
-      <p class="subtitle" id="s3Subtitle">Take a photo of each side of the vehicle: front, rear, driver side and passenger side.</p>
-
-      <!-- Each tile opens the live camera. There is no file input here and
-           none may be added: a photo picked from the library could show any
-           car on any day, and these are evidence of the vehicle's condition at
-           this pickup or return. -->
-      <div class="angles-grid" id="walkaroundGrid">
-        <button type="button" class="angle-item" data-angle="front">Front<span class="angle-item__hint">Tap to take photo</span></button>
-        <button type="button" class="angle-item" data-angle="rear">Rear<span class="angle-item__hint">Tap to take photo</span></button>
-        <button type="button" class="angle-item" data-angle="driver">Driver Side<span class="angle-item__hint">Tap to take photo</span></button>
-        <button type="button" class="angle-item" data-angle="passenger">Passenger Side<span class="angle-item__hint">Tap to take photo</span></button>
-      </div>
-
-      <div class="spacer"></div>
-      <button class="skip-link" id="s3Skip">Skip this step</button>
-      <button class="btn btn-primary" id="s3Next" style="display:none">Continue →</button>
-    </div>
-
-
-    <!-- ═══════════════════════════════════════════════════════════
          Screen 4 — Photos of Concern
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s4">
       <button class="return-back-btn" id="s4Back">← Back</button>
-      <div class="step-label">Step 3 of 5</div>
-      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div></div>
+      <div class="step-label">Step 2 of 4</div>
+      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div></div>
       <h1>Photos of Concern</h1>
       <div class="optional-badge">Optional</div>
-      <p class="subtitle" id="s4Subtitle" style="margin-bottom:20px">See any damage not listed? Photograph it now to protect yourself.</p>
+      <p class="subtitle" id="s4Subtitle" style="margin-bottom:20px">See any new damage that isn't listed? Photograph it now to protect yourself.</p>
 
       <div class="photo-grid" id="photoGrid"></div>
 
       <button class="btn btn-primary" id="addPhotoBtn">Add Photos</button>
 
       <div class="spacer"></div>
-      <button class="skip-link" id="s4Skip">Skip</button>
-      <button class="btn btn-primary" id="s4Next" style="display:none">Continue →</button>
+      <button class="btn btn-primary" id="s4Next">Continue →</button>
     </div>
 
 
@@ -1120,8 +1045,8 @@
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s5">
       <button class="return-back-btn" id="s5Back">← Back</button>
-      <div class="step-label">Step 4 of 5</div>
-      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg"></div></div>
+      <div class="step-label">Step 3 of 4</div>
+      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg"></div></div>
       <h1>Odometer &amp; Fuel</h1>
       <p class="subtitle">Take a photo of the odometer and fuel gauge, or enter the readings manually.</p>
 
@@ -1149,8 +1074,8 @@
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s6">
       <button class="return-back-btn" id="s6Back">← Back</button>
-      <div class="step-label">Step 5 of 5</div>
-      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div></div>
+      <div class="step-label">Step 4 of 4</div>
+      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div></div>
       <h1>Sign to Confirm</h1>
       <p class="subtitle" id="s6Subtitle">By signing below you confirm you have inspected the vehicle and accept it in its current documented condition.</p>
 
@@ -1315,7 +1240,7 @@
     <img id="photoLightboxImg" src="" alt="Photo" />
   </div>
 
-  <!-- Live camera for every walkaround and damage photo. See openLiveCamera. -->
+  <!-- Live camera for every photo in the app. See openLiveCamera. -->
   <div class="live-cam" id="liveCam" role="dialog" aria-modal="true" aria-labelledby="liveCamTitle">
     <div class="live-cam__top">
       <div class="live-cam__title" id="liveCamTitle">Take Photo</div>
@@ -1692,9 +1617,9 @@
     }
 
     // ── Screen routing ────────────────────────────────────────────────────────
-    const PICKUP_SCREENS = ['s1','s2','s3','s4','s5','s6','s7'];
+    const PICKUP_SCREENS = ['s1','s2','s4','s5','s6','s7'];
     const RETURN_SCREENS = ['s1','s8','s9','s9b','s10','s10b','s11'];
-    const ALL_SCREENS    = ['s1','s2','s3','s4','s5','s6','s7','s8','s9','s9b','s10','s10b','s11'];
+    const ALL_SCREENS    = ['s1','s2','s4','s5','s6','s7','s8','s9','s9b','s10','s10b','s11'];
 
     function goTo(id) {
       ALL_SCREENS.forEach(s => document.getElementById(s).classList.remove('active'));
@@ -1981,6 +1906,13 @@
       const { session, ...found } = result;
       customerSession = session;
 
+      // A new customer starts with no photos of concern. The list used to
+      // carry over, so the next customer saw the last one's photos and they
+      // were counted in the new rental agreement's photoCount.
+      photoObjectUrls.forEach(url => URL.revokeObjectURL(url));
+      photos = [];
+      renderPhotoGrid();
+
       // Save scanned / manually entered license data to the reservation.
       // Only include fields that have a value so we never overwrite existing
       // data with blanks if the customer only filled in some fields manually.
@@ -2148,18 +2080,10 @@
         ? 'This is the condition your vehicle was in at pickup.'
         : 'The following damage has been documented on this vehicle.<br />You are not responsible for it.';
 
-      // Screen 3: subtitle and skip button. Each customer starts with no
-      // walkaround photos.
-      resetWalkaround();
-      document.getElementById('s3Subtitle').textContent = isReturn
-        ? 'Take a photo of each side of the vehicle showing its current condition: front, rear, driver side and passenger side.'
-        : 'Take a photo of each side of the vehicle: front, rear, driver side and passenger side.';
-      document.getElementById('s3Skip').style.display = isReturn ? 'none' : '';
-
       // Screen 4 — subtitle
       document.getElementById('s4Subtitle').textContent = isReturn
         ? 'Flag any areas of concern.'
-        : 'See any damage not listed? Photograph it now to protect yourself.';
+        : 'See any new damage that isn\'t listed? Photograph it now to protect yourself.';
 
       // Screen 6 — signature subtitle
       document.getElementById('s6Subtitle').textContent = isReturn
@@ -2202,10 +2126,10 @@
       }
     }
 
-    document.getElementById('s2Btn').addEventListener('click', () => goTo('s3'));
+    document.getElementById('s2Btn').addEventListener('click', () => goTo('s4'));
 
     // ════════════════════════════════════════════════════════════════════════
-    // Live camera: every walkaround and damage photo
+    // Live camera: every photo in the app
     // ════════════════════════════════════════════════════════════════════════
     // Photos come only from the device camera, opened directly with
     // getUserMedia and grabbed as a frame while this screen is open. There is
@@ -2388,63 +2312,6 @@
     });
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 3: Walkaround Photos
-    // ════════════════════════════════════════════════════════════════════════
-    // One live-camera photo per side. Tapping a side again retakes it.
-    // Continue appears once all four are in, as the walkaround video it
-    // replaced was meant to cover all four sides. The photos are held here
-    // only: nothing uploads them yet, which is where the video stood too.
-    const WALKAROUND_ANGLES = ['front', 'rear', 'driver', 'passenger'];
-    let walkaroundPhotos = {};   // angle -> { file, url }
-
-    function renderWalkaround() {
-      document.querySelectorAll('#walkaroundGrid .angle-item').forEach(tile => {
-        const shot  = walkaroundPhotos[tile.dataset.angle];
-        const label = tile.firstChild.textContent;
-        tile.classList.toggle('angle-item--done', !!shot);
-        tile.innerHTML = '';
-        tile.appendChild(document.createTextNode(label));
-        if (shot) {
-          const img = document.createElement('img');
-          img.src = shot.url;
-          img.alt = `${label} photo`;
-          tile.appendChild(img);
-        }
-        const hint = document.createElement('span');
-        hint.className = 'angle-item__hint';
-        hint.textContent = shot ? 'Tap to retake' : 'Tap to take photo';
-        tile.appendChild(hint);
-      });
-      const complete = WALKAROUND_ANGLES.every(a => walkaroundPhotos[a]);
-      document.getElementById('s3Next').style.display = complete ? 'block' : 'none';
-      if (complete) document.getElementById('s3Skip').style.display = 'none';
-    }
-
-    function resetWalkaround() {
-      Object.values(walkaroundPhotos).forEach(s => URL.revokeObjectURL(s.url));
-      walkaroundPhotos = {};
-      renderWalkaround();
-    }
-
-    document.querySelectorAll('#walkaroundGrid .angle-item').forEach(tile => {
-      tile.addEventListener('click', () => {
-        const angle = tile.dataset.angle;
-        openLiveCamera({
-          title: tile.firstChild.textContent,
-          multiple: false,
-          onPhoto: file => {
-            if (walkaroundPhotos[angle]) URL.revokeObjectURL(walkaroundPhotos[angle].url);
-            walkaroundPhotos[angle] = { file, url: URL.createObjectURL(file) };
-            renderWalkaround();
-          },
-        });
-      });
-    });
-
-    document.getElementById('s3Skip').addEventListener('click', () => goTo('s4'));
-    document.getElementById('s3Next').addEventListener('click', () => goTo('s4'));
-
-    // ════════════════════════════════════════════════════════════════════════
     // Screen 4 — Photos of Concern
     // ════════════════════════════════════════════════════════════════════════
     const photoGrid  = document.getElementById('photoGrid');
@@ -2487,10 +2354,8 @@
         btn.addEventListener('click', () => openLightbox(url));
         photoGrid.appendChild(btn);
       });
-      document.getElementById('s4Next').style.display = photos.length > 0 ? '' : 'none';
     }
 
-    document.getElementById('s4Skip').addEventListener('click', () => goTo('s5'));
     document.getElementById('s4Next').addEventListener('click', () => goTo('s5'));
 
     // ════════════════════════════════════════════════════════════════════════
@@ -2703,8 +2568,7 @@
     // Pickup back navigation
     // ════════════════════════════════════════════════════════════════════════
     document.getElementById('s2Back').addEventListener('click', () => goTo('s1'));
-    document.getElementById('s3Back').addEventListener('click', () => goTo('s2'));
-    document.getElementById('s4Back').addEventListener('click', () => goTo('s3'));
+    document.getElementById('s4Back').addEventListener('click', () => goTo('s2'));
     document.getElementById('s5Back').addEventListener('click', () => goTo('s4'));
     document.getElementById('s6Back').addEventListener('click', () => goTo('s5'));
 
