@@ -319,17 +319,123 @@
       font-weight: 500;
     }
 
-    /* ── Media previews ───────────────────────────────────────── */
-    .video-preview {
+    /* Walkaround: each angle tile opens the live camera and shows its photo. */
+    button.angle-item {
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 96px;
       width: 100%;
-      border-radius: 11px;
-      border: 1px solid #1a2e2e;
-      background: #0a1818;
-      margin-bottom: 16px;
-      display: none;
-      max-height: 220px;
-      object-fit: cover;
     }
+    button.angle-item img {
+      width: 100%;
+      height: 72px;
+      object-fit: cover;
+      border-radius: 7px;
+      display: block;
+    }
+    .angle-item__hint {
+      font-size: 0.72rem;
+      color: #6b8090;
+      font-weight: 400;
+    }
+    .angle-item--done {
+      border-color: #42a4ff;
+    }
+
+    /* ── Live camera ──────────────────────────────────────────── */
+    /* Above everything, the staff overlay included, since both the customer
+       screens and the staff portal open it. */
+    .live-cam {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 3000;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    .live-cam.open { display: flex; }
+    .live-cam__top {
+      width: min(100%, 560px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .live-cam__title {
+      color: #F9F9F7;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .live-cam__close {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.3);
+      color: #F9F9F7;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.88rem;
+      border-radius: 999px;
+      padding: 7px 16px;
+      cursor: pointer;
+    }
+    .live-cam__stage {
+      position: relative;
+      width: min(100%, 560px);
+      aspect-ratio: 4/3;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 2px solid #42a4ff;
+      background: #000;
+    }
+    /* Letterboxed, not cropped, so the preview shows exactly what the photo
+       will contain. */
+    .live-cam__stage video,
+    .live-cam__stage img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    .live-cam__status {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      color: #F9F9F7;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+    .live-cam__count {
+      color: #6b8090;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.82rem;
+      margin-top: 10px;
+      min-height: 1.2em;
+    }
+    .live-cam__controls {
+      width: min(100%, 560px);
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .live-cam__controls .btn { margin: 0; flex: 1; }
+    .live-cam__controls .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Media previews ───────────────────────────────────────── */
     .odo-preview {
       width: 100%;
       max-height: 200px;
@@ -962,29 +1068,25 @@
 
 
     <!-- ═══════════════════════════════════════════════════════════
-         Screen 3 — Walkaround Video
+         Screen 3: Walkaround Photos
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s3">
       <button class="return-back-btn" id="s3Back">← Back</button>
       <div class="step-label">Step 2 of 5</div>
       <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div><div class="step-bar__seg"></div></div>
-      <h1>Walkaround Video</h1>
-      <p class="subtitle" id="s3Subtitle">Record a short video walking around the entire outside of the vehicle, covering all four sides.</p>
+      <h1>Walkaround Photos</h1>
+      <p class="subtitle" id="s3Subtitle">Take a photo of each side of the vehicle: front, rear, driver side and passenger side.</p>
 
-      <div class="angles-grid">
-        <div class="angle-item">Front</div>
-        <div class="angle-item">Rear</div>
-        <div class="angle-item">Driver Side</div>
-        <div class="angle-item">Passenger Side</div>
+      <!-- Each tile opens the live camera. There is no file input here and
+           none may be added: a photo picked from the library could show any
+           car on any day, and these are evidence of the vehicle's condition at
+           this pickup or return. -->
+      <div class="angles-grid" id="walkaroundGrid">
+        <button type="button" class="angle-item" data-angle="front">Front<span class="angle-item__hint">Tap to take photo</span></button>
+        <button type="button" class="angle-item" data-angle="rear">Rear<span class="angle-item__hint">Tap to take photo</span></button>
+        <button type="button" class="angle-item" data-angle="driver">Driver Side<span class="angle-item__hint">Tap to take photo</span></button>
+        <button type="button" class="angle-item" data-angle="passenger">Passenger Side<span class="angle-item__hint">Tap to take photo</span></button>
       </div>
-
-      <video class="video-preview" id="videoPreview" controls playsinline></video>
-
-      <input type="file" id="recordVideoInput" accept="video/*" capture="environment" style="display:none" />
-      <input type="file" id="uploadVideoInput" accept="video/*" style="display:none" />
-
-      <button class="btn btn-primary" id="recordVideoBtn">Record Video</button>
-      <button class="btn btn-primary" id="uploadVideoBtn">Upload from Library</button>
 
       <div class="spacer"></div>
       <button class="skip-link" id="s3Skip">Skip this step</button>
@@ -1005,7 +1107,6 @@
 
       <div class="photo-grid" id="photoGrid"></div>
 
-      <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="display:none" />
       <button class="btn btn-primary" id="addPhotoBtn">Add Photos</button>
 
       <div class="spacer"></div>
@@ -1025,7 +1126,6 @@
       <p class="subtitle">Take a photo of the odometer and fuel gauge, or enter the readings manually.</p>
 
       <img class="odo-preview" id="odoPreview" alt="Odometer" />
-      <input type="file" id="odoPhotoInput" accept="image/*" capture="environment" style="display:none" />
       <button class="btn btn-primary" id="takeOdoBtn">Take Photo of Dash</button>
 
       <label for="mileageInput">Odometer Reading (km)</label>
@@ -1092,7 +1192,6 @@
       <input type="number" id="returnMileageInput" placeholder="e.g. 42 500" min="0" step="1" />
 
       <div class="optional-badge">Optional</div>
-      <input type="file" id="returnOdoPhotoInput" accept="image/*" capture="environment" style="display:none" />
       <button class="btn btn-secondary" id="takeReturnOdoPhotoBtn">📷 &nbsp;Photo of Odometer</button>
       <img id="returnOdoPreview" class="return-media-preview" alt="Odometer photo" />
 
@@ -1120,7 +1219,6 @@
       </div>
 
       <div class="optional-badge">Optional</div>
-      <input type="file" id="returnFuelPhotoInput" accept="image/*" capture="environment" style="display:none" />
       <button class="btn btn-secondary" id="takeReturnFuelPhotoBtn">📷 &nbsp;Photo of Fuel Gauge</button>
       <img id="returnFuelPreview" class="return-media-preview" alt="Fuel gauge photo" />
 
@@ -1165,13 +1263,7 @@
       <div id="damageFields" style="display:none">
         <label>Photos <span style="color:#6b8090;font-size:0.78rem;text-transform:none;letter-spacing:0">(optional)</span></label>
         <div class="photo-grid" id="returnPhotoGrid"></div>
-        <input type="file" id="returnDamagePhotoInput" accept="image/*" capture="environment" multiple style="display:none" />
         <button class="btn btn-secondary" id="addReturnPhotoBtn" style="margin-bottom:22px">📷 &nbsp;Add Photos</button>
-
-        <label>Video <span style="color:#6b8090;font-size:0.78rem;text-transform:none;letter-spacing:0">(optional)</span></label>
-        <input type="file" id="returnDamageVideoInput" accept="video/*" capture="environment" style="display:none" />
-        <button class="btn btn-secondary" id="addReturnVideoBtn" style="margin-bottom:16px">🎥 &nbsp;Add Video</button>
-        <video id="returnDamageVideoPreview" class="return-media-preview" controls></video>
 
         <label for="returnDamageDesc">Description</label>
         <textarea id="returnDamageDesc" class="return-textarea" placeholder="Describe the damage…" rows="4"></textarea>
@@ -1221,6 +1313,30 @@
   <div class="photo-lightbox" id="photoLightbox">
     <button class="photo-lightbox-close" id="photoLightboxClose">&#x2715;</button>
     <img id="photoLightboxImg" src="" alt="Photo" />
+  </div>
+
+  <!-- Live camera for every walkaround and damage photo. See openLiveCamera. -->
+  <div class="live-cam" id="liveCam" role="dialog" aria-modal="true" aria-labelledby="liveCamTitle">
+    <div class="live-cam__top">
+      <div class="live-cam__title" id="liveCamTitle">Take Photo</div>
+      <button type="button" class="live-cam__close" id="liveCamClose">Cancel</button>
+    </div>
+    <div class="live-cam__stage">
+      <video id="liveCamVideo" autoplay playsinline muted></video>
+      <img id="liveCamStill" alt="Photo just taken" style="display:none" />
+      <div class="live-cam__status" id="liveCamStatus">Starting camera…</div>
+    </div>
+    <div class="live-cam__count" id="liveCamCount"></div>
+    <div class="live-cam__controls" id="liveCamLiveControls">
+      <button type="button" class="btn btn-primary" id="liveCamShutter" disabled>Take Photo</button>
+    </div>
+    <div class="live-cam__controls" id="liveCamReviewControls" style="display:none">
+      <button type="button" class="btn btn-secondary" id="liveCamRetake">Retake</button>
+      <button type="button" class="btn btn-primary" id="liveCamUse">Use Photo</button>
+    </div>
+    <div class="live-cam__controls" id="liveCamErrorControls" style="display:none">
+      <button type="button" class="btn btn-primary" id="liveCamRetry">Try Again</button>
+    </div>
   </div>
 
   <!-- License scan modal -->
@@ -1452,7 +1568,6 @@
     // which company it is working in instead of guessing from a plate or code.
     // Cleared when the next customer starts.
     let customerSession = null;   // { operatorId, locationId, reservation }
-    let videoFile = null;
     let photos    = [];
     let odoPhoto  = null;
     let mileage   = '';
@@ -1465,7 +1580,6 @@
     let returnFuelPhoto          = null;
     let returnHasDamage          = false;
     let returnDamagePhotos       = [];
-    let returnDamageVideo        = null;
     let returnDamageDescription  = '';
     let returnVehicleLocation    = '';
 
@@ -1906,7 +2020,6 @@
         returnFuelPhoto         = null;
         returnHasDamage         = false;
         returnDamagePhotos      = [];
-        returnDamageVideo       = null;
         returnDamageDescription = '';
         returnVehicleLocation   = '';
         returnPhotoObjectUrls   = [];
@@ -1923,8 +2036,6 @@
         document.getElementById('s10Submit').style.display             = 'none';
         document.getElementById('returnDamageDesc').value              = '';
         document.getElementById('returnPhotoGrid').innerHTML            = '';
-        document.getElementById('returnDamageVideoPreview').style.display = 'none';
-        document.getElementById('returnDamageVideoPreview').src         = '';
         document.getElementById('s10Error').textContent                = '';
         document.getElementById('vehicleLocationInput').value          = '';
         document.getElementById('s10bError').textContent               = '';
@@ -2037,10 +2148,12 @@
         ? 'This is the condition your vehicle was in at pickup.'
         : 'The following damage has been documented on this vehicle.<br />You are not responsible for it.';
 
-      // Screen 3 — subtitle and skip button
+      // Screen 3: subtitle and skip button. Each customer starts with no
+      // walkaround photos.
+      resetWalkaround();
       document.getElementById('s3Subtitle').textContent = isReturn
-        ? 'Record a video walking around the entire outside of the vehicle showing its current condition.'
-        : 'Record a short video walking around the entire outside of the vehicle, covering all four sides.';
+        ? 'Take a photo of each side of the vehicle showing its current condition: front, rear, driver side and passenger side.'
+        : 'Take a photo of each side of the vehicle: front, rear, driver side and passenger side.';
       document.getElementById('s3Skip').style.display = isReturn ? 'none' : '';
 
       // Screen 4 — subtitle
@@ -2092,26 +2205,241 @@
     document.getElementById('s2Btn').addEventListener('click', () => goTo('s3'));
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 3 — Walkaround Video
+    // Live camera: every walkaround and damage photo
     // ════════════════════════════════════════════════════════════════════════
-    const recordInput  = document.getElementById('recordVideoInput');
-    const uploadInput  = document.getElementById('uploadVideoInput');
-    const videoPreview = document.getElementById('videoPreview');
+    // Photos come only from the device camera, opened directly with
+    // getUserMedia and grabbed as a frame while this screen is open. There is
+    // no file input behind it and there must never be one: a file input,
+    // capture attribute or not, falls back to a file picker on desktop and on
+    // some Android browsers, and a photo chosen from a library could show any
+    // car on any day. If the camera cannot be opened, the answer is an error
+    // and Try Again, never a picker.
+    //
+    // openLiveCamera({ title, multiple, onPhoto }) calls onPhoto with a JPEG
+    // File for every photo accepted. multiple keeps the camera open for
+    // another photo after each one; otherwise it closes after the first.
+    // Photos are kept under 10 MB, the damage-photos bucket's limit.
+    const LIVE_CAM_MAX_BYTES = 10 * 1024 * 1024;
+    const liveCam = {
+      el:        document.getElementById('liveCam'),
+      title:     document.getElementById('liveCamTitle'),
+      video:     document.getElementById('liveCamVideo'),
+      still:     document.getElementById('liveCamStill'),
+      status:    document.getElementById('liveCamStatus'),
+      count:     document.getElementById('liveCamCount'),
+      closeBtn:  document.getElementById('liveCamClose'),
+      shutter:   document.getElementById('liveCamShutter'),
+      live:      document.getElementById('liveCamLiveControls'),
+      review:    document.getElementById('liveCamReviewControls'),
+      error:     document.getElementById('liveCamErrorControls'),
+      stream:    null,
+      pending:   null,   // { blob, url } awaiting Retake or Use Photo
+      opts:      null,
+      taken:     0,
+      attempt:   0,
+    };
 
-    document.getElementById('recordVideoBtn').addEventListener('click', () => recordInput.click());
-    document.getElementById('uploadVideoBtn').addEventListener('click', () => uploadInput.click());
-
-    function handleVideo(file) {
-      if (!file) return;
-      videoFile = file;
-      videoPreview.src = URL.createObjectURL(file);
-      videoPreview.style.display = 'block';
-      document.getElementById('s3Skip').style.display = 'none';
-      document.getElementById('s3Next').style.display = 'block';
+    function liveCamErrorMessage(err) {
+      const name = err?.name || '';
+      if (name === 'NotAllowedError' || name === 'SecurityError')
+        return 'Camera access was blocked. Allow camera access for this site in your browser settings, then tap Try Again.';
+      if (name === 'NotFoundError' || name === 'OverconstrainedError')
+        return 'No camera was found on this device. Photos can only be taken with a camera.';
+      if (name === 'NotReadableError' || name === 'AbortError')
+        return 'The camera could not be started. It may be in use by another app. Close that app, then tap Try Again.';
+      return 'The camera could not be started. Tap Try Again.';
     }
 
-    recordInput.addEventListener('change', () => handleVideo(recordInput.files[0]));
-    uploadInput.addEventListener('change', () => handleVideo(uploadInput.files[0]));
+    function liveCamShow(mode, message) {
+      // mode: 'starting' | 'live' | 'review' | 'error'
+      liveCam.status.style.display  = (mode === 'starting' || mode === 'error') ? 'flex' : 'none';
+      liveCam.status.textContent    = message || '';
+      liveCam.video.style.visibility = mode === 'live' ? 'visible' : 'hidden';
+      liveCam.still.style.display   = mode === 'review' ? 'block' : 'none';
+      liveCam.live.style.display    = (mode === 'live' || mode === 'starting') ? 'flex' : 'none';
+      liveCam.review.style.display  = mode === 'review' ? 'flex' : 'none';
+      liveCam.error.style.display   = mode === 'error' ? 'flex' : 'none';
+      liveCam.shutter.disabled      = mode !== 'live';
+    }
+
+    function liveCamStop() {
+      if (liveCam.stream) liveCam.stream.getTracks().forEach(t => t.stop());
+      liveCam.stream = null;
+      liveCam.video.srcObject = null;
+    }
+
+    async function liveCamStart() {
+      const attempt = ++liveCam.attempt;
+      liveCamStop();
+      liveCamShow('starting', 'Starting camera…');
+      const md = navigator.mediaDevices;
+      if (!md || typeof md.getUserMedia !== 'function') {
+        liveCamShow('error', window.isSecureContext === false
+          ? 'The camera only works over a secure (https) connection.'
+          : 'This browser cannot open the camera. Photos can only be taken with a camera.');
+        return;
+      }
+      try {
+        const stream = await md.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false,
+        });
+        // Closed, or restarted, while the permission prompt was up.
+        if (attempt !== liveCam.attempt || !liveCam.el.classList.contains('open')) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+        liveCam.stream = stream;
+        liveCam.video.srcObject = stream;
+        liveCam.video.muted = true;
+        await liveCam.video.play().catch(() => {});
+        liveCamShow('live');
+      } catch (err) {
+        if (attempt !== liveCam.attempt) return;
+        console.warn('live camera:', err);
+        liveCamShow('error', liveCamErrorMessage(err));
+      }
+    }
+
+    async function liveCamGrabFrame() {
+      const v = liveCam.video;
+      const width = v.videoWidth, height = v.videoHeight;
+      if (!width || !height) throw new Error('camera not ready');
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(v, 0, 0, width, height);
+      for (const quality of [0.9, 0.75, 0.6, 0.45]) {
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+        if (blob && blob.size <= LIVE_CAM_MAX_BYTES) return blob;
+      }
+      throw new Error('photo too large');
+    }
+
+    function liveCamUpdateCount() {
+      liveCam.count.textContent = liveCam.opts?.multiple && liveCam.taken > 0
+        ? `${liveCam.taken} photo${liveCam.taken === 1 ? '' : 's'} added`
+        : '';
+      liveCam.closeBtn.textContent = liveCam.opts?.multiple && liveCam.taken > 0 ? 'Done' : 'Cancel';
+    }
+
+    function openLiveCamera(opts) {
+      liveCam.opts  = opts;
+      liveCam.taken = 0;
+      liveCam.title.textContent = opts.title || 'Take Photo';
+      liveCamUpdateCount();
+      liveCam.el.classList.add('open');
+      liveCamStart();
+    }
+
+    function closeLiveCamera() {
+      liveCam.attempt++;
+      liveCamStop();
+      if (liveCam.pending) { URL.revokeObjectURL(liveCam.pending.url); liveCam.pending = null; }
+      liveCam.still.removeAttribute('src');
+      liveCam.el.classList.remove('open');
+      liveCam.opts = null;
+    }
+
+    liveCam.shutter.addEventListener('click', async () => {
+      if (liveCam.shutter.disabled) return;
+      liveCam.shutter.disabled = true;
+      liveCam.shutter.textContent = 'Taking Photo…';
+      try {
+        const blob = await liveCamGrabFrame();
+        liveCam.pending = { blob, url: URL.createObjectURL(blob) };
+        liveCam.still.src = liveCam.pending.url;
+        liveCamShow('review');
+      } catch (e) {
+        console.warn('live camera capture:', e);
+        liveCam.count.textContent = 'That photo could not be taken. Try again.';
+        liveCamShow('live');
+      } finally {
+        liveCam.shutter.textContent = 'Take Photo';
+      }
+    });
+
+    document.getElementById('liveCamRetake').addEventListener('click', () => {
+      if (liveCam.pending) { URL.revokeObjectURL(liveCam.pending.url); liveCam.pending = null; }
+      liveCamShow('live');
+    });
+
+    document.getElementById('liveCamUse').addEventListener('click', () => {
+      const pending = liveCam.pending;
+      const opts    = liveCam.opts;
+      if (!pending || !opts) return;
+      URL.revokeObjectURL(pending.url);
+      liveCam.pending = null;
+      const file = new File([pending.blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+      liveCam.taken++;
+      if (opts.multiple) {
+        liveCamUpdateCount();
+        liveCamShow('live');
+        opts.onPhoto(file);
+      } else {
+        closeLiveCamera();
+        opts.onPhoto(file);
+      }
+    });
+
+    document.getElementById('liveCamRetry').addEventListener('click', liveCamStart);
+    liveCam.closeBtn.addEventListener('click', closeLiveCamera);
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && liveCam.el.classList.contains('open')) closeLiveCamera();
+    });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 3: Walkaround Photos
+    // ════════════════════════════════════════════════════════════════════════
+    // One live-camera photo per side. Tapping a side again retakes it.
+    // Continue appears once all four are in, as the walkaround video it
+    // replaced was meant to cover all four sides. The photos are held here
+    // only: nothing uploads them yet, which is where the video stood too.
+    const WALKAROUND_ANGLES = ['front', 'rear', 'driver', 'passenger'];
+    let walkaroundPhotos = {};   // angle -> { file, url }
+
+    function renderWalkaround() {
+      document.querySelectorAll('#walkaroundGrid .angle-item').forEach(tile => {
+        const shot  = walkaroundPhotos[tile.dataset.angle];
+        const label = tile.firstChild.textContent;
+        tile.classList.toggle('angle-item--done', !!shot);
+        tile.innerHTML = '';
+        tile.appendChild(document.createTextNode(label));
+        if (shot) {
+          const img = document.createElement('img');
+          img.src = shot.url;
+          img.alt = `${label} photo`;
+          tile.appendChild(img);
+        }
+        const hint = document.createElement('span');
+        hint.className = 'angle-item__hint';
+        hint.textContent = shot ? 'Tap to retake' : 'Tap to take photo';
+        tile.appendChild(hint);
+      });
+      const complete = WALKAROUND_ANGLES.every(a => walkaroundPhotos[a]);
+      document.getElementById('s3Next').style.display = complete ? 'block' : 'none';
+      if (complete) document.getElementById('s3Skip').style.display = 'none';
+    }
+
+    function resetWalkaround() {
+      Object.values(walkaroundPhotos).forEach(s => URL.revokeObjectURL(s.url));
+      walkaroundPhotos = {};
+      renderWalkaround();
+    }
+
+    document.querySelectorAll('#walkaroundGrid .angle-item').forEach(tile => {
+      tile.addEventListener('click', () => {
+        const angle = tile.dataset.angle;
+        openLiveCamera({
+          title: tile.firstChild.textContent,
+          multiple: false,
+          onPhoto: file => {
+            if (walkaroundPhotos[angle]) URL.revokeObjectURL(walkaroundPhotos[angle].url);
+            walkaroundPhotos[angle] = { file, url: URL.createObjectURL(file) };
+            renderWalkaround();
+          },
+        });
+      });
+    });
 
     document.getElementById('s3Skip').addEventListener('click', () => goTo('s4'));
     document.getElementById('s3Next').addEventListener('click', () => goTo('s4'));
@@ -2119,15 +2447,15 @@
     // ════════════════════════════════════════════════════════════════════════
     // Screen 4 — Photos of Concern
     // ════════════════════════════════════════════════════════════════════════
-    const photoInput = document.getElementById('photoInput');
     const photoGrid  = document.getElementById('photoGrid');
 
-    document.getElementById('addPhotoBtn').addEventListener('click', () => photoInput.click());
-
-    photoInput.addEventListener('change', () => {
-      photos = [...photos, ...Array.from(photoInput.files)];
-      renderPhotoGrid();
-      photoInput.value = ''; // allow re-selecting same file
+    // Live camera only; see openLiveCamera. Several photos per visit.
+    document.getElementById('addPhotoBtn').addEventListener('click', () => {
+      openLiveCamera({
+        title: 'Photos of Concern',
+        multiple: true,
+        onPhoto: file => { photos = [...photos, file]; renderPhotoGrid(); },
+      });
     });
 
     // Lightbox
@@ -2168,19 +2496,21 @@
     // ════════════════════════════════════════════════════════════════════════
     // Screen 5 — Odometer & Fuel
     // ════════════════════════════════════════════════════════════════════════
-    const odoPhotoInput = document.getElementById('odoPhotoInput');
     const odoPreview    = document.getElementById('odoPreview');
     const fuelRange     = document.getElementById('fuelRange');
     const fuelLabel     = document.getElementById('fuelValueLabel');
 
-    document.getElementById('takeOdoBtn').addEventListener('click', () => odoPhotoInput.click());
-
-    odoPhotoInput.addEventListener('change', () => {
-      const f = odoPhotoInput.files[0];
-      if (!f) return;
-      odoPhoto = f;
-      odoPreview.src = URL.createObjectURL(f);
-      odoPreview.style.display = 'block';
+    // Live camera only; see openLiveCamera. Taking it again replaces it.
+    document.getElementById('takeOdoBtn').addEventListener('click', () => {
+      openLiveCamera({
+        title: 'Odometer',
+        multiple: false,
+        onPhoto: f => {
+          odoPhoto = f;
+          odoPreview.src = URL.createObjectURL(f);
+          odoPreview.style.display = 'block';
+        },
+      });
     });
 
     fuelRange.addEventListener('input', () => {
@@ -2312,7 +2642,6 @@
               mileage:               mileage ? parseInt(mileage, 10) : null,
               fuelAtPickup:          fuelStr,
               photoCount:            photos.length,
-              hasVideo:              !!videoFile,
               inspectedAt:           new Date().toISOString(),
             };
             console.log('rental_agreements insert payload:', raInsertPayload);
@@ -2384,16 +2713,18 @@
     // ════════════════════════════════════════════════════════════════════════
     document.getElementById('s8Back').addEventListener('click', () => goTo('s1'));
 
-    const returnOdoPhotoInput = document.getElementById('returnOdoPhotoInput');
-    document.getElementById('takeReturnOdoPhotoBtn').addEventListener('click', () => returnOdoPhotoInput.click());
-    returnOdoPhotoInput.addEventListener('change', () => {
-      const f = returnOdoPhotoInput.files[0];
-      if (!f) return;
-      returnOdoPhoto = f;
-      const prev = document.getElementById('returnOdoPreview');
-      prev.src = URL.createObjectURL(f);
-      prev.style.display = 'block';
-      returnOdoPhotoInput.value = '';
+    // Live camera only; see openLiveCamera. Taking it again replaces it.
+    document.getElementById('takeReturnOdoPhotoBtn').addEventListener('click', () => {
+      openLiveCamera({
+        title: 'Odometer',
+        multiple: false,
+        onPhoto: f => {
+          returnOdoPhoto = f;
+          const prev = document.getElementById('returnOdoPreview');
+          prev.src = URL.createObjectURL(f);
+          prev.style.display = 'block';
+        },
+      });
     });
 
     document.getElementById('s8Next').addEventListener('click', () => {
@@ -2420,16 +2751,18 @@
       returnFuelLabel.textContent = FUEL_LABELS[returnFuelLevel];
     });
 
-    const returnFuelPhotoInput = document.getElementById('returnFuelPhotoInput');
-    document.getElementById('takeReturnFuelPhotoBtn').addEventListener('click', () => returnFuelPhotoInput.click());
-    returnFuelPhotoInput.addEventListener('change', () => {
-      const f = returnFuelPhotoInput.files[0];
-      if (!f) return;
-      returnFuelPhoto = f;
-      const prev = document.getElementById('returnFuelPreview');
-      prev.src = URL.createObjectURL(f);
-      prev.style.display = 'block';
-      returnFuelPhotoInput.value = '';
+    // Live camera only; see openLiveCamera. Taking it again replaces it.
+    document.getElementById('takeReturnFuelPhotoBtn').addEventListener('click', () => {
+      openLiveCamera({
+        title: 'Fuel Gauge',
+        multiple: false,
+        onPhoto: f => {
+          returnFuelPhoto = f;
+          const prev = document.getElementById('returnFuelPreview');
+          prev.src = URL.createObjectURL(f);
+          prev.style.display = 'block';
+        },
+      });
     });
 
     document.getElementById('s9Next').addEventListener('click', () => {
@@ -2473,7 +2806,6 @@
     document.getElementById('damageNoBtn').addEventListener('click', () => {
       returnHasDamage         = false;
       returnDamagePhotos      = [];
-      returnDamageVideo       = null;
       returnDamageDescription = '';
       document.getElementById('s10Error').textContent = '';
       goTo('s10b');
@@ -2486,38 +2818,27 @@
       document.getElementById('s10Error').textContent       = '';
     });
 
-    // Return damage photo upload
+    // Return damage photos: live camera only; see openLiveCamera.
     let returnPhotoObjectUrls = [];
-    const returnDamagePhotoInput = document.getElementById('returnDamagePhotoInput');
     const returnPhotoGrid        = document.getElementById('returnPhotoGrid');
 
-    document.getElementById('addReturnPhotoBtn').addEventListener('click', () => returnDamagePhotoInput.click());
-
-    returnDamagePhotoInput.addEventListener('change', () => {
-      returnDamagePhotos = [...returnDamagePhotos, ...Array.from(returnDamagePhotoInput.files)];
-      returnPhotoObjectUrls = returnDamagePhotos.map(f => URL.createObjectURL(f));
-      returnPhotoGrid.innerHTML = '';
-      returnPhotoObjectUrls.forEach((url, i) => {
-        const btn = document.createElement('button');
-        btn.className   = 'photo-link';
-        btn.textContent = `View Photo ${i + 1}`;
-        btn.addEventListener('click', () => openLightbox(url));
-        returnPhotoGrid.appendChild(btn);
+    document.getElementById('addReturnPhotoBtn').addEventListener('click', () => {
+      openLiveCamera({
+        title: 'Damage Photos',
+        multiple: true,
+        onPhoto: file => {
+          returnDamagePhotos = [...returnDamagePhotos, file];
+          returnPhotoObjectUrls = returnDamagePhotos.map(f => URL.createObjectURL(f));
+          returnPhotoGrid.innerHTML = '';
+          returnPhotoObjectUrls.forEach((url, i) => {
+            const btn = document.createElement('button');
+            btn.className   = 'photo-link';
+            btn.textContent = `View Photo ${i + 1}`;
+            btn.addEventListener('click', () => openLightbox(url));
+            returnPhotoGrid.appendChild(btn);
+          });
+        },
       });
-      returnDamagePhotoInput.value = '';
-    });
-
-    // Return damage video upload
-    const returnDamageVideoInput = document.getElementById('returnDamageVideoInput');
-    document.getElementById('addReturnVideoBtn').addEventListener('click', () => returnDamageVideoInput.click());
-    returnDamageVideoInput.addEventListener('change', () => {
-      const f = returnDamageVideoInput.files[0];
-      if (!f) return;
-      returnDamageVideo = f;
-      const prev = document.getElementById('returnDamageVideoPreview');
-      prev.src = URL.createObjectURL(f);
-      prev.style.display = 'block';
-      returnDamageVideoInput.value = '';
     });
 
     document.getElementById('s10Submit').addEventListener('click', () => {
@@ -2567,7 +2888,6 @@
             returnHasDamage:         returnHasDamage,
             returnDamageDescription: returnHasDamage ? returnDamageDescription : null,
             returnPhotoCount:        returnHasDamage ? returnDamagePhotos.length : 0,
-            returnVideoCount:        returnHasDamage && returnDamageVideo ? 1 : 0,
             returnVehicleLocation:   returnVehicleLocation || null,
           };
 
@@ -3075,7 +3395,6 @@
 
         <div id="staffDamageFields" style="display:none;margin-top:16px">
           <label style="color:#42a4ff;font-family:'Inter',sans-serif;font-size:0.72rem;font-weight:700;letter-spacing:0.11em;text-transform:uppercase;display:block;margin-bottom:6px">Photos</label>
-          <input type="file" id="staffReturnDamagePhotoInput" accept="image/*" capture="environment" multiple style="display:none" />
           <button class="btn btn-primary" id="staffAddDamagePhotoBtn" style="margin-bottom:8px">📷 &nbsp;Add Photo</button>
           <div id="staffReturnPhotoGrid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
           <label style="color:#42a4ff;font-family:'Inter',sans-serif;font-size:0.72rem;font-weight:700;letter-spacing:0.11em;text-transform:uppercase;display:block;margin-bottom:6px">Description <span style="color:#4a5f6a;font-size:0.72rem;letter-spacing:0;text-transform:none;font-weight:400">(optional)</span></label>
@@ -3140,22 +3459,25 @@
         }
       });
 
-      // Photo input
-      const photoInput  = document.getElementById('staffReturnDamagePhotoInput');
+      // Damage photos: live camera only; see openLiveCamera.
       const photoGrid   = document.getElementById('staffReturnPhotoGrid');
-      document.getElementById('staffAddDamagePhotoBtn').addEventListener('click', () => photoInput.click());
-      photoInput.addEventListener('change', () => {
-        staffReturnDamagePhotos  = [...staffReturnDamagePhotos, ...Array.from(photoInput.files)];
-        staffReturnDamageObjUrls = staffReturnDamagePhotos.map(f => URL.createObjectURL(f));
-        photoGrid.innerHTML      = '';
-        staffReturnDamageObjUrls.forEach((url, i) => {
-          const img      = document.createElement('img');
-          img.src        = url;
-          img.style.cssText = 'width:72px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #1e3535;cursor:pointer';
-          img.addEventListener('click', () => window.open(url, '_blank'));
-          photoGrid.appendChild(img);
+      document.getElementById('staffAddDamagePhotoBtn').addEventListener('click', () => {
+        openLiveCamera({
+          title: 'Damage Photos',
+          multiple: true,
+          onPhoto: file => {
+            staffReturnDamagePhotos  = [...staffReturnDamagePhotos, file];
+            staffReturnDamageObjUrls = staffReturnDamagePhotos.map(f => URL.createObjectURL(f));
+            photoGrid.innerHTML      = '';
+            staffReturnDamageObjUrls.forEach((url, i) => {
+              const img      = document.createElement('img');
+              img.src        = url;
+              img.style.cssText = 'width:72px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #1e3535;cursor:pointer';
+              img.addEventListener('click', () => window.open(url, '_blank'));
+              photoGrid.appendChild(img);
+            });
+          },
         });
-        photoInput.value = '';
       });
 
       // Continue
