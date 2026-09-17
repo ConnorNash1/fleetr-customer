@@ -1536,82 +1536,6 @@
       return idx === -1 ? null : idx / (FUEL_LABELS.length - 1);
     }
 
-    // Every input is optional-by-failure: if tank size, price, or either fuel
-    // reading is missing, this returns null and the caller leaves gasOwed alone
-    // so staff can still enter it by hand in Gas Collections.
-    function calculateGasCharge({ pickupFuel, returnFuel, tankSizeLiters, pricePerLiter, markupPercent }) {
-      const pickupFrac = fuelLabelToFraction(pickupFuel);
-      const returnFrac = fuelLabelToFraction(returnFuel);
-      const tank       = parseFloat(tankSizeLiters);
-      const price      = parseFloat(pricePerLiter);
-      const markup     = parseFloat(markupPercent);
-
-      if (pickupFrac === null || returnFrac === null)   return null;
-      if (!Number.isFinite(tank)  || tank  <= 0)        return null;
-      if (!Number.isFinite(price) || price <= 0)        return null;
-      if (returnFrac >= pickupFrac)                     return null; // returned full enough
-
-      const litersShort = (pickupFrac - returnFrac) * tank;
-      const rate        = Number.isFinite(markup) ? markup : 0;
-      const charge      = litersShort * price * (1 + rate / 100);
-      return { litersShort, charge: Math.round(charge * 100) / 100 };
-    }
-
-    // ── Preventative Maintenance ──────────────────────────────────────────────
-    // Returning a vehicle is the only moment an odometer reading is captured, so
-    // the PM check runs here rather than on a schedule. Everything is in
-    // kilometres: fleet.pmIntervalKm and lastPmOdometer are stored canonically,
-    // and the internal app converts to miles for display only.
-    //
-    // Returns the fleet patch to apply, or null to leave status alone.
-    function evaluatePm(vehicleRow, odometerKm) {
-      if (!vehicleRow) return null;
-      if (odometerKm == null || !Number.isFinite(odometerKm)) return null;
-
-      const patch = { currentOdometer: odometerKm };
-
-      // First reading for this vehicle: record a baseline instead of flagging it,
-      // otherwise every vehicle would look overdue the first time it came back.
-      if (vehicleRow.lastPmOdometer == null) {
-        patch.lastPmOdometer = odometerKm;
-        return { patch, due: false, reason: 'baseline recorded' };
-      }
-
-      const interval = parseFloat(vehicleRow.pmIntervalKm);
-      if (!Number.isFinite(interval) || interval <= 0) {
-        return { patch, due: false, reason: 'no PM interval set' };
-      }
-
-      const since = odometerKm - vehicleRow.lastPmOdometer;
-      if (since >= interval) {
-        // PM is a flag, not a status. The vehicle keeps whatever status the
-        // return gives it (normally Ready Returns) so staff still process the
-        // check in, and it appears under Preventative Maintenance at the same
-        // time. Status only becomes 'PM' when staff later advance it out of
-        // Ready Returns, which the internal app enforces.
-        patch.needsPm = true;
-        return { patch, due: true, since, interval, reason: 'PM due' };
-      }
-      return { patch, due: false, since, interval, reason: 'not yet due' };
-    }
-
-    // Region comes from the vehicle's province — the only geographic field that
-    // is actually populated on every fleet row. reservations.location holds
-    // partner/bodyshop codes (AF, FA, WI…), not a geography, so it is not used.
-    async function loadGasSettings() {
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('*')
-        .in('key', ['gasMarkupPercent', 'gasPrices', 'gasDefaultRegion']);
-      if (error) { console.warn('app_settings load error:', error); return null; }
-      const byKey = Object.fromEntries((data || []).map(r => [r.key, r.value]));
-      return {
-        markupPercent: byKey.gasMarkupPercent,
-        prices:        byKey.gasPrices        || {},
-        defaultRegion: byKey.gasDefaultRegion || null,
-      };
-    }
-
     // ── Screen routing ────────────────────────────────────────────────────────
     const PICKUP_SCREENS = ['s1','s2','s4','s5','s6','s7'];
     const RETURN_SCREENS = ['s1','s8','s9','s9b','s10','s10b','s11'];
@@ -2876,6 +2800,11 @@
 
     // ── Staff state ──────────────────────────────────────────────────────────
     let staffUser          = null;  // authenticated user object from Supabase
+    // The token staff_login issued. Every staff_* function takes it and works
+    // out the company and branch from it on the server, so nothing here decides
+    // what a signed-in person can reach. Held in memory only, never in storage:
+    // a reload or a closed tab signs them out.
+    let staffToken         = null;
     let staffSearchedPlate = '';
     let staffSearchedProvince = '';  // province chosen on the plate search
     let staffRAs           = [];    // rental agreements found for searched plate
@@ -2895,6 +2824,7 @@
     let staffChargesDR       = 0;    // dailyRate
     let staffChargesSrc      = '';   // source string
     let staffChargesRaId     = null; // RA id we loaded these for
+    let staffPhotoUploadFailures = 0; // damage photos that did not upload on the last return save
 
     const STAFF_SCREENS = ['ss-login','ss-plate','ss-list','ss-detail','ss-return','ss-charges','ss-close','ss-vstatus'];
 
@@ -2907,7 +2837,40 @@
     }
 
     function closeStaffPortal() {
+      staffSignOut();
       document.getElementById('staffOverlay').classList.remove('open');
+    }
+
+    // Revokes the token on the server and forgets the session here. Called on
+    // every way out of the portal, since reopening it always starts at sign-in.
+    // Not awaited: the revoke answers ok whatever happens, and the person
+    // leaving should not wait on it.
+    function staffSignOut() {
+      if (staffToken) {
+        supabase.rpc('staff_logout', { p_token: staffToken })
+          .then(({ error }) => { if (error) console.warn('staff logout error:', error); });
+      }
+      staffToken = null;
+      staffUser  = null;
+    }
+
+    // Calls a staff_* function with the session token. A token that has expired
+    // or been revoked sends staff back to sign in, with a message saying why,
+    // rather than showing a failure that reads like a broken save. Returns the
+    // function's reply, or null when the call itself failed or the session ended.
+    async function staffRpc(fn, args) {
+      const { data, error } = await supabase.rpc(fn, { p_token: staffToken, ...args });
+      if (error) { console.warn(`${fn} error:`, error); return null; }
+      if (data && data.ok === false && data.error === 'invalid_token') {
+        staffToken = null;
+        staffUser  = null;
+        document.getElementById('staffUsername').value  = '';
+        document.getElementById('staffPassword').value = '';
+        document.getElementById('ss-login-error').textContent = 'Your session ended. Please sign in again.';
+        goStaff('ss-login');
+        return null;
+      }
+      return data;
     }
 
     function goStaff(id) {
@@ -2965,8 +2928,18 @@
         return;
       }
 
+      // A right PIN with no token means the database is still on the staff_login
+      // that predates tokens. Nothing past this screen could work, so say so
+      // here rather than on the first search.
+      if (!result.token) {
+        errEl.textContent = 'Staff sign-in is not available right now. Please use the internal app.';
+        console.warn('staff_login returned no token: staff_portal_tokens.sql has not been run');
+        return;
+      }
+
       const matched = result.profile;
-      staffUser = matched;
+      staffUser  = matched;
+      staffToken = result.token;
       document.getElementById('staffUserLabel').textContent =
         matched.username || matched.name || username;
       document.getElementById('staffPlateInput').value = '';
@@ -2985,7 +2958,7 @@
     // ── Plate Search ─────────────────────────────────────────────────────────
 
     document.getElementById('staffPlateBackBtn').addEventListener('click', () => {
-      staffUser = null;
+      staffSignOut();
       goStaff('ss-login');
     });
 
@@ -2999,51 +2972,32 @@
       if (!plate)    { errEl.textContent = 'Please enter a plate number.'; return; }
       if (!province) { errEl.textContent = 'Please choose the province or state on the plate.'; return; }
 
-      // The vehicle is found in the signed-in staff member's own company only,
-      // using the operatorId staff_login returned. Without one there is no
-      // company to search.
-      const operatorId = staffUser?.operatorId || null;
-      if (!operatorId) { errEl.textContent = 'Your account is not linked to a company. Sign in again.'; return; }
-
       const searchBtn = document.getElementById('staffSearchBtn');
       searchBtn.disabled = true;
       searchBtn.innerHTML = '<span class="spinner"></span>Searching…';
 
-      const { data: foundVehicle, error: vehErr } = await supabase.rpc('lookup_vehicle_by_plate', {
-        plate, province, operator_id: operatorId,
-      });
-      if (vehErr || !foundVehicle) {
-        searchBtn.disabled = false;
-        searchBtn.textContent = 'Search';
-        if (vehErr) console.warn('staff vehicle lookup error:', vehErr);
-        errEl.textContent = vehErr
-          ? 'Search failed. Please try again.'
-          : 'No vehicle with that plate and province in your company.';
-        return;
-      }
-      staffSearchedProvince = province;
-
-      // Agreements are still read directly. None of the lookup functions can
-      // list a vehicle's agreements, and anon reads of this table return
-      // nothing, so this list stays empty until staff sign-in gives the portal
-      // a real session. Filtered to the vehicle's own plate as stored.
-      const { data, error } = await supabase
-        .from('rental_agreements')
-        .select('*')
-        .in('rentalAgreementStatus', ['open_rental_agreement', 'close_pending']);
+      // The vehicle and its open and close-pending agreements, in one call. The
+      // server finds them in the signed-in staff member's own branch; the page
+      // does not say which company to look in.
+      const result = await staffRpc('staff_agreements_for_vehicle', { p_plate: plate, p_province: province });
 
       searchBtn.disabled = false;
       searchBtn.textContent = 'Search';
 
-      if (error) {
+      if (!staffToken) return;  // the session ended and staffRpc went to sign-in
+      if (!result) {
         errEl.textContent = 'Search failed. Please try again.';
-        console.warn('staff plate search error:', error);
+        return;
+      }
+      if (!result.ok) {
+        errEl.textContent = 'No vehicle with that plate and province in your branch.';
         return;
       }
 
-      const norm  = p => String(p || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
-      staffRAs           = (data || []).filter(ra => norm(ra.plate) === norm(foundVehicle.plate));
-      staffSearchedPlate = plate;
+      staffFleetVehicle     = result.vehicle || null;
+      staffSearchedProvince = province;
+      staffRAs              = Array.isArray(result.agreements) ? result.agreements : [];
+      staffSearchedPlate    = plate;
 
       document.getElementById('ss-list-title').textContent = raw.toUpperCase();
       renderStaffRAList();
@@ -3199,18 +3153,8 @@
       staffChargesRaId = null;
       staffLineItems   = [];
 
-      // Fetch the vehicle for the plate so we can show previous damage. Same
-      // lookup as the plate search: this staff member's company, and the
-      // province they searched with.
-      staffFleetVehicle = null;
-      const plate = staffSelectedRA?.plate;
-      if (plate && staffUser?.operatorId && staffSearchedProvince) {
-        const { data: fv, error: fvErr } = await supabase.rpc('lookup_vehicle_by_plate', {
-          plate, province: staffSearchedProvince, operator_id: staffUser.operatorId,
-        });
-        if (fvErr) console.warn('staff vehicle lookup error:', fvErr);
-        staffFleetVehicle = fv || null;
-      }
+      // The vehicle is the one staff_agreements_for_vehicle returned with this
+      // agreement on the plate search, so it is already in hand.
 
       renderStaffReturnPage();
       goStaff('ss-return');
@@ -3267,7 +3211,7 @@
           <label style="color:#42a4ff;font-family:'Inter',sans-serif;font-size:0.72rem;font-weight:700;letter-spacing:0.11em;text-transform:uppercase;display:block;margin-bottom:6px">Photos</label>
           <button class="btn btn-primary" id="staffAddDamagePhotoBtn" style="margin-bottom:8px">📷 &nbsp;Add Photo</button>
           <div id="staffReturnPhotoGrid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
-          <label style="color:#42a4ff;font-family:'Inter',sans-serif;font-size:0.72rem;font-weight:700;letter-spacing:0.11em;text-transform:uppercase;display:block;margin-bottom:6px">Description <span style="color:#4a5f6a;font-size:0.72rem;letter-spacing:0;text-transform:none;font-weight:400">(optional)</span></label>
+          <label style="color:#42a4ff;font-family:'Inter',sans-serif;font-size:0.72rem;font-weight:700;letter-spacing:0.11em;text-transform:uppercase;display:block;margin-bottom:6px">Description</label>
           <textarea id="staffReturnDamageDesc" placeholder="Describe the damage…" rows="3"
             style="width:100%;box-sizing:border-box;background:#1F1E1D;border:1px solid rgba(255,255,255,0.2);color:#F9F9F7;font-family:'Inter',sans-serif;font-size:0.92rem;border-radius:9px;padding:12px 14px;resize:vertical;margin-bottom:4px;transition:border-color 0.15s;outline:none"></textarea>
         </div>
@@ -3370,66 +3314,44 @@
           return;
         }
 
-        const continueBtn = document.getElementById('staffReturnContinueBtn');
-        continueBtn.disabled = true;
-        continueBtn.innerHTML = '<span class="spinner"></span>Saving…';
-
         const fuelStr = FUEL_LABELS[staffReturnFuelLevel] || 'Empty';
         const desc    = document.getElementById('staffReturnDamageDesc')?.value?.trim() || '';
         staffReturnDamageDesc = desc;
 
-        const raUpdate = {
-          returnMileage:           parseInt(odoVal, 10),
-          returnFuelLevel:         fuelStr,
-          returnHasDamage:         staffReturnHasDamage,
-          returnDamageDescription: staffReturnHasDamage ? (desc || null) : null,
-          returnPhotoCount:        staffReturnHasDamage ? staffReturnDamagePhotos.length : 0,
-        };
-
-        // New damage marks the rental agreement close_pending from this same
-        // action — staff still finalize the close later from ss-close.
-        if (staffReturnHasDamage) {
-          raUpdate.rentalAgreementStatus = 'close_pending';
+        // The server refuses damage with no description, so it is asked for here
+        // before anything is saved rather than after half of it has been.
+        if (staffReturnHasDamage && !desc) {
+          errEl.textContent = 'Please describe the damage.';
+          document.getElementById('staffReturnDamageDesc')?.focus();
+          return;
         }
 
-        // Gas collection: charge for the fuel gap, if we have everything needed.
-        // Any missing piece (tank size, regional price, fuel reading) leaves
-        // gasOwed untouched so it stays manually enterable in Gas Collections.
-        const gasSettings = await loadGasSettings();
-        if (gasSettings) {
-          const region = staffFleetVehicle?.province || gasSettings.defaultRegion;
-          const gas = calculateGasCharge({
-            pickupFuel:     staffSelectedRA.fuelAtPickup,
-            returnFuel:     fuelStr,
-            tankSizeLiters: staffFleetVehicle?.tankSizeLiters,
-            pricePerLiter:  region ? gasSettings.prices?.[region] : null,
-            markupPercent:  gasSettings.markupPercent,
-          });
-          if (gas) {
-            raUpdate.gasOwed = gas.charge.toFixed(2);
-            console.log('gas charge calculated:', {
-              region, litersShort: gas.litersShort, charge: gas.charge,
-            });
-          } else {
-            console.log('gas charge skipped: missing tank size, regional price, or no fuel gap', {
-              region,
-              tankSizeLiters: staffFleetVehicle?.tankSizeLiters,
-              price: region ? gasSettings.prices?.[region] : null,
-              pickupFuel: staffSelectedRA.fuelAtPickup, returnFuel: fuelStr,
-            });
-          }
-        }
-
-        const { error: saveErr } = await supabase
-          .from('rental_agreements')
-          .update(raUpdate)
-          .eq('id', staffSelectedRA.id);
-
-        if (saveErr) {
+        const continueBtn = document.getElementById('staffReturnContinueBtn');
+        continueBtn.disabled = true;
+        continueBtn.innerHTML = '<span class="spinner"></span>Saving…';
+        const resetContinue = () => {
           continueBtn.disabled = false;
           continueBtn.textContent = 'Continue →';
+        };
+
+        const odometer   = parseInt(odoVal, 10);
+        const photoCount = staffReturnHasDamage ? staffReturnDamagePhotos.length : 0;
+
+        // The readings and the gas charge. The charge is worked out on the
+        // server from the branch's own gas prices; nothing here decides it.
+        const saved = await staffRpc('staff_save_return', {
+          p_rental_agreement_id: staffSelectedRA.id,
+          p_odometer:            odometer,
+          p_fuel_level:          fuelStr,
+          p_has_damage:          staffReturnHasDamage,
+          p_damage_description:  staffReturnHasDamage ? desc : null,
+          p_photo_count:         photoCount,
+        });
+        if (!staffToken) return;
+        if (!saved || !saved.ok) {
+          resetContinue();
           errEl.textContent = 'Failed to save. Please try again.';
-          console.warn('staffReturn save error:', saveErr);
+          if (saved) console.warn('staff_save_return refused:', saved.error);
           return;
         }
 
@@ -3437,35 +3359,54 @@
         // captured, so the PM check runs here. Staff can still override the
         // status later on the Vehicle Status screen if they choose.
         if (staffFleetVehicle) {
-          const pmRes = evaluatePm(staffFleetVehicle, parseInt(odoVal, 10));
-          if (pmRes) {
-            const { error: pmErr } = await supabase
-              .from('fleet').update(pmRes.patch).eq('id', staffFleetVehicle.id);
-            if (pmErr) console.warn('fleet PM update failed:', pmErr);
-            else Object.assign(staffFleetVehicle, pmRes.patch);
-            console.log('PM check (staff return):', { plate: staffFleetVehicle.plate, ...pmRes });
+          const pm = await staffRpc('staff_update_pm', {
+            p_vehicle_id: staffFleetVehicle.id,
+            p_odometer:   odometer,
+          });
+          if (!staffToken) return;
+          if (pm && pm.ok) {
+            staffFleetVehicle = { ...staffFleetVehicle, currentOdometer: pm.currentOdometer, needsPm: pm.needsPm };
+            console.log('PM check (staff return):', { plate: staffFleetVehicle.plate, due: pm.due, reason: pm.reason });
+          } else {
+            console.warn('staff_update_pm failed:', pm?.error);
           }
         }
 
-        // Insert the damage claim itself. Photos aren't uploaded anywhere yet,
-        // only counted, so the claim starts with an empty photos array.
+        // The damage claim, then the photos, into the folder the claim opened.
+        let photosFailed = 0;
         if (staffReturnHasDamage) {
-          const claimInsert = {
-            id:                crypto.randomUUID(),
-            plate:             staffSelectedRA.plate || null,
-            rentalAgreementId: staffSelectedRA.id,
-            description:       desc || null,
-            photos:            [],
-            status:            'open',
-          };
-          const { error: claimErr } = await supabase.from('damage_claims').insert(claimInsert);
-          if (claimErr) console.warn('damage_claims insert error:', claimErr);
+          const claim = await staffRpc('staff_report_damage', {
+            p_rental_agreement_id: staffSelectedRA.id,
+            p_description:         desc,
+            p_photo_count:         photoCount,
+          });
+          if (!staffToken) return;
+          if (claim && claim.ok && claim.photoPath) {
+            const { failed } = await uploadAgreementPhotos(
+              claim.photoPath,
+              staffReturnDamagePhotos.map(file => ({ name: 'staff-damage', file })),
+            );
+            photosFailed = failed.length;
+          } else {
+            console.warn('staff_report_damage failed:', claim?.error);
+            photosFailed = staffReturnDamagePhotos.length;
+          }
         }
+        staffPhotoUploadFailures = photosFailed;
 
-        continueBtn.disabled = false;
-        continueBtn.textContent = 'Continue →';
+        resetContinue();
 
         // Update local RA record so the detail page reflects new data
+        const raUpdate = {
+          returnMileage:           odometer,
+          returnFuelLevel:         fuelStr,
+          returnHasDamage:         staffReturnHasDamage,
+          returnDamageDescription: staffReturnHasDamage ? desc : null,
+          returnPhotoCount:        photoCount,
+          rentalAgreementStatus:   saved.status || staffSelectedRA.rentalAgreementStatus,
+        };
+        if (saved.gasOwed != null) raUpdate.gasOwed = saved.gasOwed;
+        if (!staffSelectedRA.returnedAt) raUpdate.returnedAt = new Date().toISOString();
         staffSelectedRA = { ...staffSelectedRA, ...raUpdate };
         const idx = staffRAs.findIndex(r => r.id === staffSelectedRA.id);
         if (idx >= 0) staffRAs[idx] = staffSelectedRA;
@@ -3479,26 +3420,24 @@
       const ra   = staffSelectedRA;
       const body = document.getElementById('ss-charges-body');
 
-      // ── Fetch from Supabase if not already cached for this RA ────────────────
+      // ── Load from the agreement row already in hand ──────────────────────────
+      // staff_agreements_for_vehicle returned the whole row on the plate search,
+      // lineItems and payments included, so there is nothing more to read.
+      // Either may have been stored as a JSON string; it is read as a list
+      // either way.
       if (staffChargesRaId !== ra?.id) {
-        body.innerHTML = `<div style="color:#8faabb;font-family:'Inter',sans-serif;padding:28px 0;text-align:center;font-size:0.9rem">Loading…</div>`;
-        const { data, error } = await supabase
-          .from('rental_agreements')
-          .select('"lineItems","payments","dailyRate","source"')
-          .eq('id', ra.id)
-          .maybeSingle();
-        if (!error && data) {
-          staffLineItems       = Array.isArray(data.lineItems) ? data.lineItems : [];
-          staffChargesPayments = Array.isArray(data.payments)  ? data.payments  : [];
-          staffChargesDR       = parseFloat(data.dailyRate)    || parseFloat(ra.dailyRate) || 0;
-          staffChargesSrc      = data.source || ra.source || '';
-        } else {
-          staffLineItems       = [];
-          staffChargesPayments = Array.isArray(ra.payments) ? ra.payments : [];
-          staffChargesDR       = parseFloat(ra.dailyRate) || 0;
-          staffChargesSrc      = ra.source || '';
-        }
-        staffChargesRaId = ra.id;
+        const asList = (v) => {
+          if (Array.isArray(v)) return v;
+          if (typeof v === 'string' && v.trim() !== '') {
+            try { const parsed = JSON.parse(v); if (Array.isArray(parsed)) return parsed; } catch (e) { /* not JSON */ }
+          }
+          return [];
+        };
+        staffLineItems       = asList(ra.lineItems);
+        staffChargesPayments = asList(ra.payments);
+        staffChargesDR       = parseFloat(ra.dailyRate) || 0;
+        staffChargesSrc      = ra.source || '';
+        staffChargesRaId     = ra.id;
       }
 
       const lineItems = staffLineItems;
@@ -3594,7 +3533,12 @@
         </div>` : '';
 
       // ── Render ────────────────────────────────────────────────────────────────
+      const photoWarning = staffPhotoUploadFailures > 0
+        ? `<div class="error-msg" style="margin-bottom:16px">${staffPhotoUploadFailures === 1 ? '1 damage photo' : `${staffPhotoUploadFailures} damage photos`} did not upload. The return was still saved. Photograph the damage again from the internal app.</div>`
+        : '';
+
       body.innerHTML = `
+        ${photoWarning}
         <div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:14px 16px;margin-bottom:28px">
           ${summaryRow('Customer', ra.customer || '—')}
           ${summaryRow('Plate',    ra.plate    || '—')}
@@ -3681,30 +3625,30 @@
       addBtn.disabled = true;
       addBtn.innerHTML = '<span class="spinner"></span>Saving…';
 
-      const newItem = {
-        key:     `sc_${Date.now()}`,
-        label:   type + (desc ? ` — ${desc}` : ''),
-        applies: true,
-        qty:     1,
-        amount:  parseFloat(amt.toFixed(2)),
-      };
-      const updatedLineItems = [...staffLineItems, newItem];
+      // The server builds the line item and appends it under a row lock, so the
+      // list it sends back is the agreement's real one, including anything added
+      // from elsewhere since this page loaded.
+      const result = await staffRpc('staff_add_charge', {
+        p_rental_agreement_id: staffSelectedRA.id,
+        p_type:                type,
+        p_description:         desc || null,
+        p_amount:              parseFloat(amt.toFixed(2)),
+      });
 
-      const { error } = await supabase
-        .from('rental_agreements')
-        .update({ "lineItems": updatedLineItems })
-        .eq('id', staffSelectedRA.id);
-
+      if (!staffToken) return;
       addBtn.disabled = false;
       addBtn.textContent = 'Add Charge';
 
-      if (error) {
-        errEl.textContent = 'Failed to save charge. Please try again.';
-        console.warn('addCharge error:', error);
+      if (!result || !result.ok) {
+        errEl.textContent = result?.error === 'invalid_amount'
+          ? 'That amount cannot be added. Enter an amount above $0 and up to $100,000.'
+          : 'Failed to save charge. Please try again.';
+        if (result) console.warn('staff_add_charge refused:', result.error);
         return;
       }
 
-      staffLineItems = updatedLineItems;
+      staffLineItems  = Array.isArray(result.lineItems) ? result.lineItems : [...staffLineItems, result.lineItem];
+      staffSelectedRA = { ...staffSelectedRA, lineItems: staffLineItems };
       const idx = staffRAs.findIndex(r => r.id === staffSelectedRA.id);
       if (idx >= 0) staffRAs[idx] = staffSelectedRA;
 
@@ -3729,27 +3673,56 @@
 
       if (!pin) { errEl.textContent = 'Please enter your PIN.'; return; }
 
-      const storedPin = String(staffUser?.pin ?? staffUser?.password ?? '');
-      if (String(pin) !== storedPin) {
-        errEl.textContent = 'Incorrect PIN.';
-        return;
-      }
-
       const confirmBtn = document.getElementById('confirmCloseBtn');
       confirmBtn.disabled = true;
       confirmBtn.innerHTML = '<span class="spinner"></span>Closing…';
+      const resetConfirm = () => {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Confirm Close Rental';
+      };
 
-      const { error } = await supabase
-        .from('rental_agreements')
-        .update({ rentalAgreementStatus: 'closed' })
-        .eq('id', staffSelectedRA.id);
+      // The PIN is checked by the database, the same way as at sign-in and
+      // against the same lockout. It compared against staffUser.pin before,
+      // which the profile has never carried, so every close was refused.
+      // staff_login issues a token as a side effect; this one is not needed
+      // and is revoked straight away. It must also be the same person who
+      // signed in, not any member of staff whose PIN is typed here.
+      const { data: check, error: checkErr } = await supabase.rpc('staff_login', {
+        p_username: staffUser?.username || '',
+        p_pin:      pin,
+      });
+      if (check?.token) {
+        supabase.rpc('staff_logout', { p_token: check.token })
+          .then(({ error }) => { if (error) console.warn('staff logout error:', error); });
+      }
+      if (checkErr) {
+        resetConfirm();
+        errEl.textContent = 'Connection error. Please try again.';
+        console.warn('close PIN check error:', checkErr);
+        return;
+      }
+      if (!check?.ok || check.profile?.id !== staffUser?.id) {
+        resetConfirm();
+        if (check?.locked) {
+          const mins = Math.max(1, Math.ceil((check.retryInSeconds || 0) / 60));
+          errEl.textContent = `Too many attempts. Try again in ${mins} minute${mins === 1 ? '' : 's'}.`;
+        } else {
+          errEl.textContent = 'Incorrect PIN.';
+        }
+        return;
+      }
 
-      confirmBtn.disabled = false;
-      confirmBtn.textContent = 'Confirm Close Rental';
+      const result = await staffRpc('staff_close_agreement', {
+        p_rental_agreement_id: staffSelectedRA.id,
+        p_vehicle_status:      null,
+      });
 
-      if (error) {
+      if (!staffToken) return;
+      resetConfirm();
+
+      if (!result || !result.ok) {
         errEl.textContent = 'Failed to close rental. Please try again.';
-        console.warn('closeRental error:', error);
+        if (result) console.warn('staff_close_agreement refused:', result.error);
         return;
       }
 
@@ -3768,10 +3741,11 @@
 
     // These strings are written straight into fleet.status, so they must match
     // the values the internal app filters on. 'LOFR' was renamed to 'PM'
-    // (Preventative Maintenance) there.
+    // (Preventative Maintenance) there. Exactly the internal app's seven, which
+    // are the only ones staff_close_agreement accepts.
     const VSTATUS_OPTIONS = [
-      'Available', 'Needs Cleaning', 'On Rent',
-      'PM', 'Maintenance', 'Ready Returns', 'Out of Service',
+      'Available', 'Needs Cleaning', 'Ready for Pickup',
+      'PM', 'Damaged', 'On Rent', 'Ready Returns',
     ];
 
     function renderStaffVStatusScreen() {
@@ -3798,22 +3772,22 @@
           let forcedPm = false;
 
           if (staffSelectedRA?.plate) {
-            // A vehicle flagged for preventative maintenance cannot be put back
-            // into a working status here. Mirrors the same rule in the internal
-            // app so both entry points behave identically.
-            const { data: fv } = await supabase
-              .from('fleet').select('needsPm').eq('plate', staffSelectedRA.plate).maybeSingle();
-            if (fv?.needsPm && ['Available', 'Needs Cleaning', 'Ready for Pickup'].includes(status)) {
-              finalStatus = 'PM';
-              forcedPm = true;
+            // The agreement is already closed, so this call only sets the
+            // vehicle's status. A vehicle flagged for preventative maintenance
+            // cannot be put back into a working status: the server applies the
+            // same rule as the internal app and says when it did.
+            const res = await staffRpc('staff_close_agreement', {
+              p_rental_agreement_id: staffSelectedRA.id,
+              p_vehicle_status:      status,
+            });
+            if (!staffToken) return;
+            if (res && res.ok) {
+              finalStatus = res.vehicleStatus || status;
+              forcedPm    = !!res.forcedPm;
+            } else {
+              fleetErr = res?.error || 'failed';
             }
-
-            const res = await supabase
-              .from('fleet')
-              .update({ status: finalStatus })
-              .eq('plate', staffSelectedRA.plate);
-            console.log('vstatus fleet update:', { requested: status, finalStatus, forcedPm, res });
-            fleetErr = res.error;
+            console.log('vstatus fleet update:', { requested: status, finalStatus, forcedPm, error: fleetErr });
           }
 
           if (fleetErr) {
