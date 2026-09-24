@@ -1562,7 +1562,13 @@
       // If an RA exists but is NOT open_rental_agreement, block — can't pick up or return
       if (raStatus && raStatus !== 'open_rental_agreement') {
         console.log('Blocked — RA status is:', raStatus);
-        return { error: 'This reservation has already been processed and cannot be modified.' };
+        // customer_return means this person already returned it here, most
+        // likely a back button or a reopened tab. Saying it has been
+        // "processed" reads as though staff have dealt with it, which they
+        // have not, and sends someone to the desk over their own second tap.
+        return { error: raStatus === 'customer_return'
+          ? 'This rental has already been returned. Nothing further is needed here.'
+          : 'This reservation has already been processed and cannot be modified.' };
       }
 
       const detectedFlow = raStatus === 'open_rental_agreement' ? 'return' : 'pickup';
