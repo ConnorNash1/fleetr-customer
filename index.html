@@ -1185,12 +1185,26 @@
     const scanVideo      = document.getElementById('scanVideo');
     const scanStatus     = document.getElementById('scanStatus');
     let   scanStream      = null;   // MediaStream from getUserMedia
-    let   scanRafId       = null;   // requestAnimationFrame handle for scan loop
+    let   scanReader      = null;   // ZXing BrowserPDF417Reader decoding the stream
+    let   scanTimer       = null;   // gives up on an unreadable barcode after a while
     let   scannedProvince = '';     // captured from AAMVA scan; no form field for it
 
+    // The barcode reader. BarcodeDetector is Chromium only, so iPhone Safari
+    // never scanned at all; ZXing decodes PDF417 in plain JavaScript on every
+    // browser. Loaded the first time Scan License is tapped, so a customer
+    // who types their details never downloads it.
+    const ZXING_URL = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.23.0/+esm';
+    const SCAN_GIVE_UP_MS = 20000;
+    let zxingModule = null;
+    async function loadZxing() {
+      if (!zxingModule) zxingModule = await import(ZXING_URL);
+      return zxingModule;
+    }
+
     function closeScanModal() {
-      // Stop rAF loop
-      if (scanRafId !== null) { cancelAnimationFrame(scanRafId); scanRafId = null; }
+      if (scanTimer !== null) { clearTimeout(scanTimer); scanTimer = null; }
+      // Stop decoding
+      if (scanReader) { try { scanReader.reset(); } catch (_) { /* already stopped */ } scanReader = null; }
       // Release camera
       if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
       scanVideo.srcObject = null;
@@ -1281,63 +1295,74 @@
       manualToggleBtn.textContent = 'Hide manual entry';
     }
 
+    // Any scan that cannot finish: the reader did not load, the camera was
+    // refused, or no barcode could be read. The scanner closes and the manual
+    // form opens with the reason, so the customer always has a way forward.
+    function scanFallback(message) {
+      closeScanModal();
+      manualLicenseForm.style.display = 'block';
+      manualToggleBtn.textContent = 'Hide manual entry';
+      document.getElementById('s1Error').textContent = message;
+    }
+
     scanModalClose.addEventListener('click', closeScanModal);
 
     document.getElementById('scanLicenseBtn').addEventListener('click', async () => {
-      // BarcodeDetector support check
-      if (!('BarcodeDetector' in window)) {
-        scanStatus.textContent = 'Scanning not supported in this browser — please enter details manually';
-        scanModal.classList.add('open');
-        return;
-      }
-
-      // Verify the browser supports pdf417 specifically
-      const supported = await BarcodeDetector.getSupportedFormats().catch(() => []);
-      if (!supported.includes('pdf417')) {
-        scanStatus.textContent = 'Scanning not supported in this browser — please enter details manually';
-        scanModal.classList.add('open');
-        return;
-      }
-
+      document.getElementById('s1Error').textContent = '';
       scanModal.classList.add('open');
-      scanStatus.textContent = 'Scanning…';
+      scanStatus.textContent = 'Starting camera…';
+
+      let zx;
+      try {
+        zx = await loadZxing();
+      } catch (e) {
+        console.warn('Barcode reader failed to load:', e);
+        scanFallback('The license scanner could not load. Please enter your details below.');
+        return;
+      }
+      if (!scanModal.classList.contains('open')) return; // closed while loading
 
       try {
+        // A higher resolution than the default: the barcode's bars are thin,
+        // and ZXing reads them far more reliably from a sharper frame.
         scanStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
           audio: false,
         });
-        scanVideo.srcObject = scanStream;
-        await scanVideo.play();
-
-        const detector = new BarcodeDetector({ formats: ['pdf417'] });
-
-        const tick = async () => {
-          // Stop looping if modal was closed
-          if (!scanStream) return;
-
-          try {
-            const barcodes = await detector.detect(scanVideo);
-            if (barcodes.length > 0) {
-              const raw = barcodes[0].rawValue;
-              console.log('Barcode scan result:', raw);
-              closeScanModal();
-              const parsed = parseAAMVA(raw);
-              console.log('Parsed AAMVA fields:', parsed);
-              populateFromScan(parsed);
-              return; // do not schedule next frame
-            }
-          } catch (_) { /* frame not ready yet — continue */ }
-
-          scanRafId = requestAnimationFrame(tick);
-        };
-
-        scanRafId = requestAnimationFrame(tick);
-
       } catch (e) {
-        closeScanModal();
-        alert('Camera access denied or unavailable: ' + (e.message || e));
+        console.warn('Scan camera unavailable:', e);
+        scanFallback('The camera is not available, so the license could not be scanned. Please enter your details below.');
+        return;
       }
+      if (!scanModal.classList.contains('open')) { closeScanModal(); return; }
+
+      scanStatus.textContent = 'Scanning…';
+      scanReader = new zx.BrowserPDF417Reader();
+      scanTimer = setTimeout(() => {
+        scanFallback('We could not read the barcode. Please enter your details below, or tap Scan License to try again.');
+      }, SCAN_GIVE_UP_MS);
+
+      // Decodes frames until one reads. A frame with no barcode in it reports
+      // NotFoundException, which is the normal case between reads.
+      scanReader.decodeFromStream(scanStream, scanVideo, (result, err) => {
+        if (!result) {
+          if (err && !(err instanceof zx.NotFoundException)) console.warn('Barcode frame error:', err);
+          return;
+        }
+        const raw = result.getText();
+        console.log('Barcode scan result:', raw);
+        const parsed = parseAAMVA(raw);
+        console.log('Parsed AAMVA fields:', parsed);
+        if (!parsed.dlNumber && !parsed.firstName && !parsed.lastName && !parsed.expiry) {
+          scanFallback('That barcode did not contain license details we could read. Please enter your details below.');
+          return;
+        }
+        closeScanModal();
+        populateFromScan(parsed);
+      }).catch((e) => {
+        console.warn('Barcode reader failed:', e);
+        scanFallback('The license could not be scanned. Please enter your details below.');
+      });
     });
 
     function normalizePlate(s) {
