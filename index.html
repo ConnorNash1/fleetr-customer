@@ -1571,7 +1571,19 @@
           : 'This reservation has already been processed and cannot be modified.' };
       }
 
-      const detectedFlow = raStatus === 'open_rental_agreement' ? 'return' : 'pickup';
+      // A switch the customer has not collected yet. Staff moved this rental
+      // onto another vehicle, so the customer is here to pick that one up, not
+      // to return anything: the open agreement goes through the pickup flow,
+      // and only for the vehicle staff assigned.
+      const pending      = raStatus === 'open_rental_agreement' ? (raRow?.pendingVehicle || null) : null;
+      const switchPickup = !!pending;
+      if (switchPickup && (!pending.id || String(pending.id) !== String(matchedVehicle.id))) {
+        return { error: pending.plate
+          ? `This is not the vehicle for your rental. Look for the vehicle with license plate ${pending.plate}, then start again with that plate. If you cannot find it, please see a member of staff.`
+          : WRITE_ERROR_MESSAGES.wrong_vehicle };
+      }
+
+      const detectedFlow = raStatus === 'open_rental_agreement' && !switchPickup ? 'return' : 'pickup';
 
       // A return must be on the agreement's current vehicle. Caught here so the
       // customer is told before the inspection starts; complete_return checks
@@ -1581,9 +1593,9 @@
           && normalizePlate(raRow.plate) !== normalizePlate(matchedVehicle.plate)) {
         return { error: WRITE_ERROR_MESSAGES.wrong_vehicle };
       }
-      console.log('All steps passed — detectedFlow:', detectedFlow, '| resolvedResCode:', resCode, '| raId:', raId);
+      console.log('All steps passed, detectedFlow:', detectedFlow, '| switchPickup:', switchPickup, '| resolvedResCode:', resCode, '| raId:', raId);
 
-      return { ...matchedVehicle, detectedFlow, resolvedResCode: resCode, raId, raFuelAtPickup, session };
+      return { ...matchedVehicle, detectedFlow, switchPickup, resolvedResCode: resCode, raId, raFuelAtPickup, session };
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -2028,7 +2040,8 @@
         : '';
     }
 
-    // Messages for the reasons complete_pickup and complete_return give.
+    // Messages for the reasons complete_pickup, complete_switch_pickup and
+    // complete_return give.
     const WRITE_ERROR_MESSAGES = {
       needs_pm:                    'This vehicle is due for maintenance and cannot go out yet. Please see a member of staff.',
       already_processed:           'This reservation has already been picked up. Please see a member of staff.',
@@ -2038,14 +2051,20 @@
       invalid_odometer:            'Please go back and check the odometer reading.',
       invalid_fuel_level:          'Please go back and check the gas level.',
       damage_description_required: 'Please go back and describe the damage.',
+      pickup_pending:              'Your rental has been moved to a different vehicle, which has not been picked up yet. Please start again with that vehicle\'s license plate to pick it up, or see a member of staff.',
       wrong_vehicle:               'This plate does not match the vehicle for your rental. Check the license plate and province you entered against the vehicle, then start again. If they are correct, please see a member of staff.',
     };
     const writeErrorMessage = (code) =>
       WRITE_ERROR_MESSAGES[code] || 'Something went wrong saving this. Please try again or see a member of staff.';
 
     // ════════════════════════════════════════════════════════════════════════
-    // Submit: pickup, through complete_pickup
+    // Submit: pickup, through complete_pickup or complete_switch_pickup
     // ════════════════════════════════════════════════════════════════════════
+    // A switch pickup goes to complete_switch_pickup, which takes the same
+    // arguments, fills in the pending vehicle's pickup on the open agreement
+    // rather than opening a new one, and refuses any vehicle but the assigned
+    // one.
+    //
     // The database re-checks the code and name, takes the company from the
     // reservation, checks the vehicle is that company's own, and opens the
     // rental agreement, puts the vehicle On Rent and marks the reservation
@@ -2060,7 +2079,8 @@
         return { ok: false, message: 'Your session has expired. Please start again.' };
       }
 
-      const { data: result, error } = await supabase.rpc('complete_pickup', {
+      const fn = vehicle.switchPickup ? 'complete_switch_pickup' : 'complete_pickup';
+      const { data: result, error } = await supabase.rpc(fn, {
         code:        proof.code,
         first_name:  proof.firstName,
         last_name:   proof.lastName,
@@ -2071,17 +2091,17 @@
         photo_count: photos.length,
       });
       if (error) {
-        console.warn('complete_pickup failed:', error);
+        console.warn(fn + ' failed:', error);
         return { ok: false, message: 'Unable to connect. Please try again.' };
       }
       if (!result) {
         return { ok: false, message: 'We could not confirm this reservation. Please start again or see a member of staff.' };
       }
       if (!result.ok) {
-        console.log('complete_pickup refused:', result.error);
+        console.log(fn + ' refused:', result.error);
         return { ok: false, message: writeErrorMessage(result.error) };
       }
-      console.log('complete_pickup ok:', result.rentalAgreementId);
+      console.log(fn + ' ok:', result.rentalAgreementId);
 
       const upload = await uploadAgreementPhotos(result.photoPath, [
         ...photos.map(file => ({ name: 'pickup-damage', file })),
