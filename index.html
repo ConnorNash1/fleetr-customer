@@ -1572,6 +1572,15 @@
       }
 
       const detectedFlow = raStatus === 'open_rental_agreement' ? 'return' : 'pickup';
+
+      // A return must be on the agreement's current vehicle. Caught here so the
+      // customer is told before the inspection starts; complete_return checks
+      // it again and is the real guard. An agreement with no plate on file has
+      // nothing to compare against, as in complete_return.
+      if (detectedFlow === 'return' && normalizePlate(raRow?.plate)
+          && normalizePlate(raRow.plate) !== normalizePlate(matchedVehicle.plate)) {
+        return { error: WRITE_ERROR_MESSAGES.wrong_vehicle };
+      }
       console.log('All steps passed — detectedFlow:', detectedFlow, '| resolvedResCode:', resCode, '| raId:', raId);
 
       return { ...matchedVehicle, detectedFlow, resolvedResCode: resCode, raId, raFuelAtPickup, session };
@@ -2029,6 +2038,7 @@
       invalid_odometer:            'Please go back and check the odometer reading.',
       invalid_fuel_level:          'Please go back and check the gas level.',
       damage_description_required: 'Please go back and describe the damage.',
+      wrong_vehicle:               'This plate does not match the vehicle for your rental. Check the license plate and province you entered against the vehicle, then start again. If they are correct, please see a member of staff.',
     };
     const writeErrorMessage = (code) =>
       WRITE_ERROR_MESSAGES[code] || 'Something went wrong saving this. Please try again or see a member of staff.';
@@ -2306,6 +2316,9 @@
         odo_photo_count:    returnOdoPhoto  ? 1 : 0,
         fuel_photo_count:   returnFuelPhoto ? 1 : 0,
         damage_photo_count: returnHasDamage ? returnDamagePhotos.length : 0,
+        // The plate this return was started with. complete_return refuses it
+        // as wrong_vehicle unless it is the vehicle on the agreement.
+        vehicle_plate:      vehicle?.plate || null,
       });
 
       let message = null;
