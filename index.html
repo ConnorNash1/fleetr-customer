@@ -1215,11 +1215,41 @@
     // Parse an AAMVA-standard PDF417 driver's license barcode string.
     // Returns { firstName, lastName, dlNumber, dob, expiry, address, postal, province }.
     function parseAAMVA(raw) {
-      // Build a map of every 3-letter field code → value from the raw string.
+      // The header, read to where the data starts. "ANSI " is followed by the
+      // issuer number (6 digits), the AAMVA version (2), from version 02 on a
+      // jurisdiction version (2), the number of subfiles (2), then one
+      // designator per subfile: its type ("DL", "ID", "ZN"...) and two 4-digit
+      // numbers. The data follows, and each subfile's first line begins with
+      // its type glued to the first field ("DLDAQ..."). Reading that line as
+      // is took "DLD" for a field code and lost the first field, which on
+      // older layouts is the licence number, so the type is stripped here.
+      let body = raw;
+      let subfileTypes = [];
+      const header = /ANSI ?\d{6}(\d{2})/.exec(raw);
+      if (header) {
+        let pos = header.index + header[0].length;
+        if (parseInt(header[1], 10) >= 2) pos += 2; // jurisdiction version
+        const count = parseInt(raw.slice(pos, pos + 2), 10);
+        pos += 2;
+        const types = [];
+        for (let i = 0; i < (count || 0); i++) {
+          const d = /^([A-Z]{2})\d{8}/.exec(raw.slice(pos, pos + 10));
+          if (!d) break;
+          types.push(d[1]);
+          pos += 10;
+        }
+        if (types.length) { body = raw.slice(pos); subfileTypes = types; }
+      }
+
+      // Build a map of every 3-letter field code → value from the data.
       // AAMVA records are newline-delimited; each line starts with a 3-char code.
       const fields = {};
-      const lines = raw.split(/[\r\n]+/);
-      for (const line of lines) {
+      const lines = body.split(/[\r\n]+/);
+      for (const rawLine of lines) {
+        const t = rawLine.slice(0, 2);
+        // Only a D code after the type: every licence field is one, and no
+        // licence field itself begins with a subfile type.
+        const line = subfileTypes.includes(t) && /^D[A-Z]{2}/.test(rawLine.slice(2)) ? rawLine.slice(2) : rawLine;
         if (line.length > 3) {
           const code = line.slice(0, 3);
           if (/^[A-Z]{3}$/.test(code)) {
@@ -1230,7 +1260,9 @@
 
       // --- Name ---
       // Prefer separate fields DCS (last) / DAC (first) over combined DAA.
-      let firstName = fields['DAC'] || '';
+      // Older layouts carry the given names in DCT ("FIRST MIDDLE") instead of
+      // DAC, so its first name is the fallback before DAA.
+      let firstName = fields['DAC'] || (fields['DCT'] || '').split(/[\s,$@]+/)[0] || '';
       let lastName  = fields['DCS'] || '';
       if ((!firstName || !lastName) && fields['DAA']) {
         // DAA format: "LAST,FIRSTNAME,MIDDLE" or "LAST$FIRST$MIDDLE"
@@ -1269,7 +1301,9 @@
       return {
         firstName,
         lastName,
-        dlNumber: fields['DAQ'] || '',
+        // Some provinces print the number with dashes or spaces ("A1234-56789-01234");
+        // the form asks for it without.
+        dlNumber: (fields['DAQ'] || '').replace(/[\s-]/g, ''),
         dob:      aamvaDate(fields['DBB']),
         expiry:   aamvaDate(fields['DBA']),
         address:  fields['DAG'] || '',
