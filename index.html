@@ -1062,6 +1062,21 @@
       <button class="btn btn-primary" id="s11DoneBtn">Done</button>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════════
+         Cancel a reservation, opened from the link in a text (#c=token)
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="sCancel">
+      <div class="spacer"></div>
+      <h1 id="cancelTitle">One moment</h1>
+      <p class="subtitle" id="cancelSubtitle">Finding your reservation.</p>
+      <div class="done-summary" id="cancelSummary" hidden></div>
+      <div class="error-msg" id="cancelError"></div>
+      <div class="spacer"></div>
+      <button class="btn btn-danger" id="cancelYesBtn" type="button" hidden>Yes, cancel</button>
+      <button class="btn btn-secondary" id="cancelKeepBtn" type="button" hidden>Keep my reservation</button>
+      <button class="btn btn-secondary" id="cancelRetryBtn" type="button" hidden>Try again</button>
+    </div>
+
   </div><!-- /.app -->
 
   <!-- Photo lightbox — rendered outside .app so it covers the full screen -->
@@ -1153,7 +1168,7 @@
     // ── Screen routing ────────────────────────────────────────────────────────
     const PICKUP_SCREENS = ['s1','s2','s4','s5','s6','s7'];
     const RETURN_SCREENS = ['s1','s8','s9','s9b','s10','s10b','s11'];
-    const ALL_SCREENS    = ['s1','s2','s4','s5','s6','s7','s8','s9','s9b','s10','s10b','s11'];
+    const ALL_SCREENS    = ['s1','s2','s4','s5','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel'];
 
     function goTo(id) {
       ALL_SCREENS.forEach(s => document.getElementById(s).classList.remove('active'));
@@ -2513,6 +2528,140 @@
       vehicle   = null;
       flowType  = 'pickup';
       goTo('s1');
+    });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Cancel a reservation from the link in a text
+    // ════════════════════════════════════════════════════════════════════════
+    // The confirmation and pre-rental texts end with this page's address and
+    // "#c=<token>". Opened that way, the page shows the cancel screen instead
+    // of the check-in form. The token is the whole proof: it is unguessable
+    // and was sent only to the phone number on the reservation. Both calls go
+    // through database functions (fleetr-infra,
+    // reservation_confirmation_cancel.sql), which hand back only this
+    // reservation's date, time, location and company, and do the delete.
+    const cancelToken = (() => {
+      if (!location.hash.startsWith('#c=')) return null;
+      const t = location.hash.slice(3);
+      // A link cut short or mangled by a messaging app is still a cancel link,
+      // just not a usable one: '' sends it to the "not valid" message below.
+      return /^[A-Za-z0-9_-]{16,64}$/.test(t) ? t : '';
+    })();
+
+    if (cancelToken !== null) {
+      const el = (id) => document.getElementById(id);
+      const titleEl = el('cancelTitle'), subEl = el('cancelSubtitle'), sumEl = el('cancelSummary');
+      const errEl = el('cancelError'), yesBtn = el('cancelYesBtn'), keepBtn = el('cancelKeepBtn'), retryBtn = el('cancelRetryBtn');
+
+      // One screen, several states. Each sets the words and which buttons show.
+      // Every subtitle is a complete message on its own: it must not depend on
+      // the heading above it to make sense.
+      const show = (title, subtitle, { summary = false, choose = false, retry = false } = {}) => {
+        titleEl.textContent = title;
+        subEl.textContent   = subtitle;
+        sumEl.hidden        = !summary;
+        yesBtn.hidden       = !choose;
+        keepBtn.hidden      = !choose;
+        retryBtn.hidden     = !retry;
+        errEl.textContent   = '';
+      };
+      const STATES = {
+        cancelled: () => show('Already cancelled',
+          'This reservation has already been cancelled. Nothing further is needed.'),
+        picked_up: () => show('Already picked up',
+          'This rental has already been picked up, so it cannot be cancelled here. Please contact us if you need help.'),
+        invalid:   () => show('This link is not valid',
+          'This cancel link is not valid. Open the full link from your text message and try again, or contact us to cancel.'),
+      };
+
+      const fmtCancelDate = (iso) => {
+        const d = new Date(`${iso}T00:00:00`);
+        return Number.isNaN(d.getTime()) ? String(iso || '')
+          : d.toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      };
+      const fmtCancelTime = (time, meridiem) => {
+        const t = String(time || '').trim();
+        return !t ? '' : /[ap]m/i.test(t) || !meridiem ? t : `${t} ${meridiem}`;
+      };
+
+      let shown = null; // the reservation on screen, for the wording after a cancel
+
+      const showReservation = (r) => {
+        shown = r;
+        const rows = [
+          ['Company',  r.company],
+          ['Date',     fmtCancelDate(r.date)],
+          ['Time',     fmtCancelTime(r.time, r.pickupMeridiem)],
+          ['Location', r.location],
+        ].filter(([, value]) => value);
+        // Built as elements, not markup: these are words from the database.
+        sumEl.replaceChildren(...rows.map(([label, value]) => {
+          const row = document.createElement('div'); row.className = 'done-row';
+          const l = document.createElement('span');  l.className = 'dr-label'; l.textContent = label;
+          const v = document.createElement('span');  v.className = 'dr-value'; v.textContent = value;
+          row.append(l, v);
+          return row;
+        }));
+        show('Cancel your reservation?',
+          `${r.firstName ? `Hi ${r.firstName}, do` : 'Do'} you want to cancel this reservation${r.company ? ` with ${r.company}` : ''}? Cancelling cannot be undone.`,
+          { summary: true, choose: true });
+      };
+
+      const lookupCancelLink = async () => {
+        show('One moment', 'Finding your reservation.');
+        if (!cancelToken) { STATES.invalid(); return; }
+        let data = null, error = null;
+        try {
+          ({ data, error } = await supabase.rpc('cancel_link_lookup', { p_token: cancelToken }));
+        } catch (e) { error = e; }
+        if (error || !data) {
+          console.warn('cancel_link_lookup failed:', error);
+          show('Unable to connect', 'We could not reach the reservation system. Check your connection and try again.', { retry: true });
+          return;
+        }
+        if (data.state === 'active' && data.reservation) showReservation(data.reservation);
+        else (STATES[data.state] || STATES.invalid)();
+      };
+
+      yesBtn.addEventListener('click', async () => {
+        yesBtn.disabled = keepBtn.disabled = true;
+        yesBtn.textContent = 'Cancelling…';
+        errEl.textContent = '';
+        let data = null, error = null;
+        try {
+          ({ data, error } = await supabase.rpc('cancel_reservation_by_link', { p_token: cancelToken }));
+        } catch (e) { error = e; }
+        yesBtn.disabled = keepBtn.disabled = false;
+        yesBtn.textContent = 'Yes, cancel';
+        if (error || !data) {
+          console.warn('cancel_reservation_by_link failed:', error);
+          errEl.textContent = 'Unable to connect. Your reservation has not been cancelled. Please try again.';
+          return;
+        }
+        if (data.ok) {
+          const when = shown?.date ? ` for ${fmtCancelDate(shown.date)}` : '';
+          show('Reservation cancelled',
+            `Your reservation${shown?.company ? ` with ${shown.company}` : ''}${when} has been cancelled. You can close this page.`);
+          return;
+        }
+        // Refused: it was cancelled, picked up or deleted while this page was open.
+        (STATES[data.error === 'already_cancelled' ? 'cancelled' : data.error] || STATES.invalid)();
+      });
+
+      keepBtn.addEventListener('click', () => {
+        show('Reservation kept', 'Your reservation has been kept and nothing was changed. You can close this page.');
+      });
+
+      retryBtn.addEventListener('click', lookupCancelLink);
+
+      goTo('sCancel');
+      lookupCancelLink();
+    }
+
+    // A cancel link opened in a tab that already has this page loaded only
+    // changes the fragment, which does not reload the page by itself.
+    window.addEventListener('hashchange', () => {
+      if (location.hash.startsWith('#c=')) location.reload();
     });
 
     // ── Initialise ────────────────────────────────────────────────────────────
