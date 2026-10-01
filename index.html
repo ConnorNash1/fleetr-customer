@@ -618,6 +618,54 @@
     .done-row .dr-label { color: #6b8090; }
     .done-row .dr-value { font-weight: 700; color: #F9F9F7; }
 
+    /* ── Protection ───────────────────────────────────────────── */
+    .protection-card {
+      background: #ffffff;
+      border: 1px solid #d0d8e0;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      font-family: 'Inter', sans-serif;
+      color: #1F1E1D;
+    }
+    .protection-card__head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+    .protection-card__name { font-weight: 700; font-size: 1rem; }
+    .protection-card__price { font-size: 0.9rem; color: #4a6070; white-space: nowrap; }
+    .protection-card__wording {
+      font-size: 0.9rem;
+      color: #4a6070;
+      line-height: 1.55;
+      margin: 0 0 12px;
+      white-space: pre-line;
+    }
+    .protection-card__choices { display: flex; gap: 10px; }
+    .protection-card__choices .btn { margin: 0; flex: 1; padding: 12px 14px; font-size: 0.95rem; }
+    .protection-card__included {
+      font-size: 0.78rem;
+      color: #42a4ff;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+    .protection-card__ack {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 12px 0 0;
+      font-size: 0.9rem;
+      color: #1F1E1D;
+      letter-spacing: normal;
+      text-transform: none;
+      line-height: 1.5;
+      cursor: pointer;
+    }
+    .protection-card__ack input { margin-top: 3px; width: 18px; height: 18px; flex: none; }
+
     /* ── Error & loading ──────────────────────────────────────── */
     .error-msg {
       color: #f87171;
@@ -897,6 +945,24 @@
 
 
     <!-- ═══════════════════════════════════════════════════════════
+         Screen 5b: Protection (only when something is offered)
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="sProt">
+      <button class="return-back-btn" id="sProtBack">← Back</button>
+      <div class="step-label">Step 4 of 5</div>
+      <div class="step-bar"></div>
+      <h1>Protection</h1>
+      <p class="subtitle">Choose the protection you want for this rental. Each one is charged per day.</p>
+
+      <div id="protectionList"></div>
+
+      <div class="spacer"></div>
+      <div class="error-msg" id="sProtError"></div>
+      <button class="btn btn-primary" id="sProtNext" disabled>Continue →</button>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
          Screen 6 — Digital Signature
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s6">
@@ -1143,6 +1209,15 @@
     let mileage   = '';
     let fuelLevel = 0;
 
+    // Protection, from lookup_protection_offer (fleetr-infra). null means the
+    // offer could not be read yet; an empty list means nothing is offered, and
+    // the step is skipped. Answers are keyed by product id:
+    // { accepted: true | false | null, acknowledged: boolean }.
+    let protectionOffer   = null;
+    let protectionAnswers = {};
+    // What complete_pickup recorded, for the Done screen.
+    let protectionChoices = [];
+
     // Return flow state
     let returnMileage            = '';
     let returnFuelLevel          = 8;
@@ -1166,14 +1241,16 @@
     }
 
     // ── Screen routing ────────────────────────────────────────────────────────
-    const PICKUP_SCREENS = ['s1','s2','s4','s5','s6','s7'];
+    const PICKUP_SCREENS = ['s1','s2','s4','s5','sProt','s6','s7'];
     const RETURN_SCREENS = ['s1','s8','s9','s9b','s10','s10b','s11'];
-    const ALL_SCREENS    = ['s1','s2','s4','s5','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel'];
+    const ALL_SCREENS    = ['s1','s2','s4','s5','sProt','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel'];
 
     function goTo(id) {
       ALL_SCREENS.forEach(s => document.getElementById(s).classList.remove('active'));
       document.getElementById(id).classList.add('active');
-      const chain = flowType === 'return' ? RETURN_SCREENS : PICKUP_SCREENS;
+      const chain = flowType === 'return'
+        ? RETURN_SCREENS
+        : PICKUP_SCREENS.filter(sc => sc !== 'sProt' || protectionShown());
       const idx   = chain.indexOf(id);
       const pct   = idx < 0 ? 0 : Math.round((idx / (chain.length - 1)) * 100);
       document.getElementById('progressFill').style.width = pct + '%';
@@ -1573,7 +1650,15 @@
           flowType = 'pickup';
           return;
         }
+        // The protection offer for this reservation, read now so the step
+        // count is right from the first screen. A switch pickup is never
+        // offered protection: the choices made at the first pickup stay on
+        // the agreement.
+        protectionAnswers = {};
+        protectionChoices = [];
+        await loadProtectionOffer();
         configureFlow();
+        updatePickupStepLabels();
         buildDamageScreen();
         goTo('s2');
       }
@@ -2020,7 +2105,7 @@
       fuelLabel.textContent = FUEL_LABELS[fuelLevel];
     });
 
-    document.getElementById('s5Next').addEventListener('click', () => {
+    document.getElementById('s5Next').addEventListener('click', async () => {
       const mileageVal = document.getElementById('mileageInput').value.trim();
       const s5Error    = document.getElementById('s5Error');
       if (!mileageVal) {
@@ -2031,9 +2116,179 @@
       s5Error.textContent = '';
       mileage   = mileageVal;
       fuelLevel = parseInt(fuelRange.value);
+      // The offer could not be read at lookup: try again before going on, so
+      // a customer with products to answer is not sent straight to sign.
+      if (protectionOffer === null) {
+        const s5Next = document.getElementById('s5Next');
+        s5Next.disabled = true;
+        const loaded = await loadProtectionOffer();
+        s5Next.disabled = false;
+        updatePickupStepLabels();
+        if (!loaded) {
+          s5Error.textContent = 'Unable to connect. Please try again.';
+          return;
+        }
+      }
+      if (protectionShown()) {
+        renderProtection();
+        goTo('sProt');
+        return;
+      }
       sizeCanvas();
       goTo('s6');
     });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 5b: Protection
+    // ════════════════════════════════════════════════════════════════════════
+    // Each product the company offers for this reservation's source and
+    // vehicle class, in the company's own words, with its price per day. The
+    // customer accepts or declines each; a decline needs the product's decline
+    // wording ticked; a required product is included and cannot be declined.
+    // complete_pickup works the offer out again and checks every answer, so
+    // nothing here is trusted, only explained.
+    function protectionShown() {
+      return flowType === 'pickup' && !vehicle?.switchPickup
+        && Array.isArray(protectionOffer) && protectionOffer.length > 0;
+    }
+
+    // Reads the offer. Returns false when it could not be read. Answers for a
+    // product still on offer are kept, so a reload after the offer changed
+    // only asks about what is new.
+    async function loadProtectionOffer() {
+      if (vehicle?.switchPickup) { protectionOffer = []; return true; }
+      const proof = customerSession?.proof;
+      if (!proof) { protectionOffer = null; return false; }
+      const { data, error } = await supabase.rpc('lookup_protection_offer', {
+        code: proof.code, first_name: proof.firstName, last_name: proof.lastName,
+      });
+      if (error || !Array.isArray(data)) {
+        if (error) console.warn('lookup_protection_offer failed:', error);
+        protectionOffer = null;
+        return false;
+      }
+      protectionOffer = data;
+      const kept = {};
+      data.forEach(p => {
+        const id = String(p.productId);
+        kept[id] = p.required
+          ? { accepted: true, acknowledged: false }
+          : (protectionAnswers[id] || { accepted: null, acknowledged: false });
+      });
+      protectionAnswers = kept;
+      return true;
+    }
+
+    // "Step x of n" and the segment bar on each pickup screen, for four steps
+    // or five depending on whether Protection is shown.
+    function updatePickupStepLabels() {
+      const steps = ['s2', 's4', 's5', 'sProt', 's6'].filter(id => id !== 'sProt' || protectionShown());
+      steps.forEach((id, i) => {
+        const screen = document.getElementById(id);
+        screen.querySelector('.step-label').textContent = `Step ${i + 1} of ${steps.length}`;
+        screen.querySelector('.step-bar').innerHTML = steps
+          .map((_, j) => `<div class="step-bar__seg${j <= i ? ' active' : ''}"></div>`).join('');
+      });
+    }
+
+    const protectionAnswered = (p) => {
+      const a = protectionAnswers[String(p.productId)];
+      if (!a) return false;
+      if (p.required) return true;
+      return a.accepted === true || (a.accepted === false && a.acknowledged === true);
+    };
+
+    const formatPerDay = (amount) => {
+      const n = Number(amount);
+      return Number.isFinite(n) ? `$${n.toFixed(2)} per day` : '';
+    };
+
+    // Built with text nodes, never HTML: the wording is written by the
+    // company's staff and is shown here exactly as typed.
+    function renderProtection() {
+      const list = document.getElementById('protectionList');
+      list.innerHTML = '';
+      (protectionOffer || []).forEach(p => {
+        const id = String(p.productId);
+        const a  = protectionAnswers[id] || { accepted: null, acknowledged: false };
+        const el = (tag, cls, text) => {
+          const n = document.createElement(tag);
+          if (cls) n.className = cls;
+          if (text != null) n.textContent = text;
+          return n;
+        };
+
+        const card = el('div', 'protection-card');
+        const head = el('div', 'protection-card__head');
+        head.appendChild(el('span', 'protection-card__name', p.name));
+        head.appendChild(el('span', 'protection-card__price', formatPerDay(p.pricePerDay)));
+        card.appendChild(head);
+        if (p.wording) card.appendChild(el('p', 'protection-card__wording', p.wording));
+
+        if (p.required) {
+          card.appendChild(el('div', 'protection-card__included', 'Included with your rental'));
+        } else {
+          const choices = el('div', 'protection-card__choices');
+          const accept  = el('button', `btn ${a.accepted === true ? 'btn-primary' : 'btn-secondary'}`, 'Accept');
+          const decline = el('button', `btn ${a.accepted === false ? 'btn-primary' : 'btn-secondary'}`, 'Decline');
+          accept.type = decline.type = 'button';
+          accept.setAttribute('aria-pressed', String(a.accepted === true));
+          decline.setAttribute('aria-pressed', String(a.accepted === false));
+          accept.addEventListener('click', () => {
+            protectionAnswers[id] = { accepted: true, acknowledged: false };
+            renderProtection();
+          });
+          decline.addEventListener('click', () => {
+            protectionAnswers[id] = { accepted: false, acknowledged: false };
+            renderProtection();
+          });
+          choices.appendChild(accept);
+          choices.appendChild(decline);
+          card.appendChild(choices);
+
+          if (a.accepted === false) {
+            const ack = el('label', 'protection-card__ack');
+            const box = document.createElement('input');
+            box.type = 'checkbox';
+            box.checked = !!a.acknowledged;
+            box.addEventListener('change', () => {
+              protectionAnswers[id] = { accepted: false, acknowledged: box.checked };
+              updateProtectionNext();
+            });
+            ack.appendChild(box);
+            ack.appendChild(el('span', null, p.declineWording || 'I decline this protection.'));
+            card.appendChild(ack);
+          }
+        }
+        list.appendChild(card);
+      });
+      updateProtectionNext();
+    }
+
+    function updateProtectionNext() {
+      document.getElementById('sProtNext').disabled =
+        !(protectionOffer || []).every(protectionAnswered);
+    }
+
+    document.getElementById('sProtNext').addEventListener('click', () => {
+      if (!(protectionOffer || []).every(protectionAnswered)) return;
+      document.getElementById('sProtError').textContent = '';
+      sizeCanvas();
+      goTo('s6');
+    });
+    document.getElementById('sProtBack').addEventListener('click', () => goTo('s5'));
+
+    // What goes to complete_pickup: one answer per product offered.
+    function protectionPayload() {
+      return (protectionOffer || []).map(p => {
+        const a = protectionAnswers[String(p.productId)] || {};
+        return {
+          productId:    p.productId,
+          accepted:     p.required ? true : a.accepted === true,
+          acknowledged: p.required ? false : (a.accepted === false && a.acknowledged === true),
+        };
+      });
+    }
 
     // ════════════════════════════════════════════════════════════════════════
     // Screen 6 — Signature
@@ -2096,6 +2351,25 @@
       submitBtn.disabled = false;
       submitBtn.textContent = 'Submit Inspection';
       if (!outcome.ok) {
+        if (PROTECTION_RELOAD.includes(outcome.code) || PROTECTION_REVIEW.includes(outcome.code)) {
+          if (PROTECTION_RELOAD.includes(outcome.code)) {
+            const loaded = await loadProtectionOffer();
+            updatePickupStepLabels();
+            if (!loaded) {
+              s6Error.textContent = 'Unable to connect. Please try again.';
+              return;
+            }
+          }
+          // Back to the choices, if there are any left to make. If the offer
+          // is now empty there is nothing to review, and submitting again is
+          // all that is needed.
+          if (protectionShown()) {
+            renderProtection();
+            document.getElementById('sProtError').textContent = outcome.message;
+            goTo('sProt');
+            return;
+          }
+        }
         s6Error.textContent = outcome.message;
         return;
       }
@@ -2161,7 +2435,17 @@
       damage_description_required: 'Please go back and describe the damage.',
       pickup_pending:              'Your rental has been moved to a different vehicle, which has not been picked up yet. Please start again with that vehicle\'s license plate to pick it up, or see a member of staff.',
       wrong_vehicle:               'This plate does not match the vehicle for your rental. Check the license plate and province you entered against the vehicle, then start again. If they are correct, please see a member of staff.',
+      protection_incomplete:       'The protection options for your rental have changed. Please review them again, then sign.',
+      protection_not_offered:      'The protection options for your rental have changed. Please review them again, then sign.',
+      protection_invalid:          'Something went wrong with your protection choices. Please review them again, then sign.',
+      protection_required:         'One of the protection options is included with your rental and cannot be declined. Please review your choices.',
+      protection_ack_required:     'Please tick the box for each protection you decline.',
     };
+    // Refusals that mean the offer on screen is not the offer any more, or the
+    // answers to it did not arrive whole: the offer is read again and the
+    // customer goes back to it.
+    const PROTECTION_RELOAD = ['protection_incomplete', 'protection_not_offered', 'protection_invalid'];
+    const PROTECTION_REVIEW = ['protection_required', 'protection_ack_required'];
     const writeErrorMessage = (code) =>
       WRITE_ERROR_MESSAGES[code] || 'Something went wrong saving this. Please try again or see a member of staff.';
 
@@ -2188,7 +2472,7 @@
       }
 
       const fn = vehicle.switchPickup ? 'complete_switch_pickup' : 'complete_pickup';
-      const { data: result, error } = await supabase.rpc(fn, {
+      const args = {
         code:        proof.code,
         first_name:  proof.firstName,
         last_name:   proof.lastName,
@@ -2197,7 +2481,11 @@
         fuel_level:  FUEL_LABELS[fuelLevel] || 'Full',
         signature:   canvas.toDataURL('image/png'),
         photo_count: photos.length,
-      });
+      };
+      // A switch pickup keeps the choices from the first pickup, and
+      // complete_switch_pickup takes none.
+      if (!vehicle.switchPickup) args.protection = protectionPayload();
+      const { data: result, error } = await supabase.rpc(fn, args);
       if (error) {
         console.warn(fn + ' failed:', error);
         return { ok: false, message: 'Unable to connect. Please try again.' };
@@ -2207,9 +2495,10 @@
       }
       if (!result.ok) {
         console.log(fn + ' refused:', result.error);
-        return { ok: false, message: writeErrorMessage(result.error) };
+        return { ok: false, code: result.error, message: writeErrorMessage(result.error) };
       }
       console.log(fn + ' ok:', result.rentalAgreementId);
+      protectionChoices = Array.isArray(result.protectionChoices) ? result.protectionChoices : [];
 
       const upload = await uploadAgreementPhotos(result.photoPath, [
         ...photos.map(file => ({ name: 'pickup-damage', file })),
@@ -2233,6 +2522,14 @@
         ['Date',     dateStr],
         mileage ? ['Odometer', `${parseInt(mileage).toLocaleString('en-CA')} km`] : null,
         ['Fuel',     fuelStr],
+        // The protection the customer accepted, as complete_pickup recorded
+        // it. Left out when nothing was offered. Escaped, since product names
+        // are written by the company's staff and this row is HTML.
+        flowType !== 'return' && protectionChoices.length
+          ? ['Protection', protectionChoices.filter(c => c.accepted)
+              .map(c => String(c.name ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]))
+              .join(', ') || 'None accepted']
+          : null,
         ['Status', flowType === 'return'
           ? '<span style="color:#f59e0b;font-weight:700">Close Pending</span>'
           : '<span style="color:#22c55e;font-weight:700">Inspection Complete</span>'],
@@ -2252,7 +2549,7 @@
     document.getElementById('s2Back').addEventListener('click', () => goTo('s1'));
     document.getElementById('s4Back').addEventListener('click', () => goTo('s2'));
     document.getElementById('s5Back').addEventListener('click', () => goTo('s4'));
-    document.getElementById('s6Back').addEventListener('click', () => goTo('s5'));
+    document.getElementById('s6Back').addEventListener('click', () => goTo(protectionShown() ? 'sProt' : 's5'));
 
     // ════════════════════════════════════════════════════════════════════════
     // Screen 8 — Return · Step 1 of 5 · Odometer
