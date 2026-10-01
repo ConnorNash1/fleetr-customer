@@ -951,8 +951,8 @@
       <button class="return-back-btn" id="sProtBack">← Back</button>
       <div class="step-label">Step 4 of 5</div>
       <div class="step-bar"></div>
-      <h1>Protection</h1>
-      <p class="subtitle">Choose the protection you want for this rental. Each one is charged per day.</p>
+      <h1>Coverages</h1>
+      <p class="subtitle">Choose the coverages you want for this rental. Each one is charged per day.</p>
 
       <div id="protectionList"></div>
 
@@ -1155,7 +1155,6 @@
   <div class="live-cam" id="liveCam" role="dialog" aria-modal="true" aria-labelledby="liveCamTitle">
     <div class="live-cam__top">
       <div class="live-cam__title" id="liveCamTitle">Take Photo</div>
-      <button type="button" class="live-cam__close" id="liveCamClose">Cancel</button>
     </div>
     <div class="live-cam__stage">
       <video id="liveCamVideo" autoplay playsinline muted></video>
@@ -1172,6 +1171,11 @@
     </div>
     <div class="live-cam__controls" id="liveCamErrorControls" style="display:none">
       <button type="button" class="btn btn-primary" id="liveCamRetry">Try Again</button>
+    </div>
+    <!-- Cancel, or Done once photos are taken. Directly under the row above,
+         whichever of the three is showing. -->
+    <div class="live-cam__controls">
+      <button type="button" class="btn btn-secondary" id="liveCamClose">Cancel</button>
     </div>
   </div>
 
@@ -1369,6 +1373,9 @@
           if (!firstName) firstName = parts[1].trim();
         }
       }
+      // Only the first given name. Some licences put every given name in DAC
+      // ("JOHN MICHAEL"), and the first name box takes just the first.
+      firstName = String(firstName).trim().split(/[\s,$@]+/)[0] || '';
 
       // --- Dates ---
       // US AAMVA: MMDDYYYY  |  Canadian AAMVA: YYYYMMDD
@@ -2256,7 +2263,7 @@
               updateProtectionNext();
             });
             ack.appendChild(box);
-            ack.appendChild(el('span', null, p.declineWording || 'I decline this protection.'));
+            ack.appendChild(el('span', null, p.declineWording || 'I decline this coverage.'));
             card.appendChild(ack);
           }
         }
@@ -2435,11 +2442,11 @@
       damage_description_required: 'Please go back and describe the damage.',
       pickup_pending:              'Your rental has been moved to a different vehicle, which has not been picked up yet. Please start again with that vehicle\'s license plate to pick it up, or see a member of staff.',
       wrong_vehicle:               'This plate does not match the vehicle for your rental. Check the license plate and province you entered against the vehicle, then start again. If they are correct, please see a member of staff.',
-      protection_incomplete:       'The protection options for your rental have changed. Please review them again, then sign.',
-      protection_not_offered:      'The protection options for your rental have changed. Please review them again, then sign.',
-      protection_invalid:          'Something went wrong with your protection choices. Please review them again, then sign.',
-      protection_required:         'One of the protection options is included with your rental and cannot be declined. Please review your choices.',
-      protection_ack_required:     'Please tick the box for each protection you decline.',
+      protection_incomplete:       'The coverage options for your rental have changed. Please review them again, then sign.',
+      protection_not_offered:      'The coverage options for your rental have changed. Please review them again, then sign.',
+      protection_invalid:          'Something went wrong with your coverage choices. Please review them again, then sign.',
+      protection_required:         'One of the coverage options is included with your rental and cannot be declined. Please review your choices.',
+      protection_ack_required:     'Please tick the box for each coverage you decline.',
     };
     // Refusals that mean the offer on screen is not the offer any more, or the
     // answers to it did not arrive whole: the offer is read again and the
@@ -2526,7 +2533,7 @@
         // it. Left out when nothing was offered. Escaped, since product names
         // are written by the company's staff and this row is HTML.
         flowType !== 'return' && protectionChoices.length
-          ? ['Protection', protectionChoices.filter(c => c.accepted)
+          ? ['Coverages', protectionChoices.filter(c => c.accepted)
               .map(c => String(c.name ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]))
               .join(', ') || 'None accepted']
           : null,
