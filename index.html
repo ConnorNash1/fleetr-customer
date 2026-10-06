@@ -1208,6 +1208,9 @@
     // which company it is working in instead of guessing from a plate or code.
     // Cleared when the next customer starts.
     let customerSession = null;   // { operatorId, locationId, reservation, proof }
+    // The token from a personal app link (#a=<token>) once it has found a
+    // reservation. While set, the token stands in for the code and last name.
+    let appLinkToken = null;
     let photos    = [];
     let odoPhoto  = null;
     let mileage   = '';
@@ -1573,8 +1576,8 @@
       s1Error.textContent = '';
       customerSession = null;
 
-      if (!rawResCode)                    { s1Error.textContent = 'Please enter your reservation code.'; return; }
-      if (!rawLastName)                   { s1Error.textContent = 'Please enter your last name.'; return; }
+      if (!appLinkToken && !rawResCode)   { s1Error.textContent = 'Please enter your reservation code.'; return; }
+      if (!appLinkToken && !rawLastName)  { s1Error.textContent = 'Please enter your last name.'; return; }
       if (!rawPlate)                      { s1Error.textContent = 'Please enter the license plate number.'; return; }
       if (!rawProvince)                   { s1Error.textContent = 'Please choose the province or state on the license plate.'; return; }
 
@@ -1583,7 +1586,9 @@
 
       let result = null;
       try {
-        result = await lookupReservation(rawResCode, rawLastName, rawPlate, rawProvince);
+        result = appLinkToken
+          ? await lookupReservation(appLinkToken, '', rawPlate, rawProvince)
+          : await lookupReservation(rawResCode, rawLastName, rawPlate, rawProvince);
       } catch (e) {
         console.warn('lookupReservation failed:', e);
         result = null;
@@ -1715,7 +1720,9 @@
       if (resErr) throw resErr;
       console.log('Step 1 - reservation found:', !!res);
       if (!res) {
-        return { error: 'Reservation not found. Check the reservation code and the last name on it, then try again.' };
+        return { error: lastName
+          ? 'Reservation not found. Check the reservation code and the last name on it, then try again.'
+          : 'This app link is no longer valid. Reload the page and enter your reservation code and last name.' };
       }
 
       // Step 2: the vehicle, by plate and province, in this reservation's
@@ -1737,8 +1744,13 @@
       });
       if (statusErr) throw statusErr;
       if (!status) {
-        return { error: 'Reservation not found. Check the reservation code and the last name on it, then try again.' };
+        return { error: lastName
+          ? 'Reservation not found. Check the reservation code and the last name on it, then try again.'
+          : 'This app link is no longer valid. Reload the page and enter your reservation code and last name.' };
       }
+      // An app link's token is the proof itself, with a blank last name;
+      // otherwise the stored code and the last name typed.
+      const proof = lastName ? { code: res.resCode, lastName } : { code: resCode, lastName: '' };
       resCode = res.resCode;
       const raRow          = status.rentalAgreement;
       const raStatus       = raRow?.status || '';
@@ -1749,7 +1761,7 @@
       // rather than trusting anything the page holds.
       const session        = {
         operatorId: res.operatorId, locationId: res.locationId, reservation: res,
-        proof: { code: res.resCode, lastName },
+        proof,
       };
 
       // If an RA exists but is NOT open_rental_agreement, block — can't pick up or return
@@ -2982,10 +2994,52 @@
       lookupCancelLink();
     }
 
-    // A cancel link opened in a tab that already has this page loaded only
-    // changes the fragment, which does not reload the page by itself.
+    // ════════════════════════════════════════════════════════════════════════
+    // A personal app link from a text
+    // ════════════════════════════════════════════════════════════════════════
+    // The confirmation, Pre-Rental Check and return reminder texts end with
+    // this page's address and "#a=<token>". Opened that way, the reservation
+    // is loaded straight away and the code and last name are not asked for:
+    // the token stands in for both in every database call (fleetr-infra,
+    // app_links.sql, through lookup_reservation with a blank last name). The
+    // licence and the plate are still asked for, as they are what tell the
+    // app which vehicle this is. A link that finds nothing leaves the usual
+    // form, with a note.
+    const appToken = (() => {
+      if (!location.hash.startsWith('#a=')) return null;
+      const t = location.hash.slice(3);
+      return /^[A-Za-z0-9_-]{16,64}$/.test(t) ? t : '';
+    })();
+
+    async function openAppLink(token) {
+      const invalid = () => {
+        s1Error.textContent = 'This app link is no longer valid. Enter your reservation code and last name instead.';
+      };
+      if (!token) { invalid(); return; }
+      let res = null;
+      try {
+        const { data, error } = await supabase.rpc('lookup_reservation', { code: token, last_name: '' });
+        if (error) throw error;
+        res = data;
+      } catch (e) {
+        console.warn('App link lookup failed:', e);
+        s1Error.textContent = 'Unable to connect. Reload the page to try your link again, or enter your reservation code and last name.';
+        return;
+      }
+      if (!res) { invalid(); return; }
+      appLinkToken = token;
+      document.querySelector('label[for="resCodeInput"]').style.display = 'none';
+      document.getElementById('resCodeInput').style.display = 'none';
+      const sub = document.querySelector('#s1 .subtitle');
+      if (sub) sub.textContent = `Reservation ${res.resCode}. Scan your license and enter the license plate to begin your vehicle inspection.`;
+    }
+
+    if (appToken !== null && cancelToken === null) openAppLink(appToken);
+
+    // A cancel or app link opened in a tab that already has this page loaded
+    // only changes the fragment, which does not reload the page by itself.
     window.addEventListener('hashchange', () => {
-      if (location.hash.startsWith('#c=')) location.reload();
+      if (location.hash.startsWith('#c=') || location.hash.startsWith('#a=')) location.reload();
     });
 
     // ── Initialise ────────────────────────────────────────────────────────────
