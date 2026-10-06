@@ -773,12 +773,21 @@
         <label for="dobInput">Date of Birth</label>
         <input type="text" id="dobInput" placeholder="YYYY-MM-DD"
                autocomplete="off" autocorrect="off" spellcheck="false" />
+        <label for="dlIssuedInput">Issued</label>
+        <input type="text" id="dlIssuedInput" placeholder="YYYY-MM-DD"
+               autocomplete="off" autocorrect="off" spellcheck="false" />
         <label for="dlExpiryInput">Expiry</label>
         <input type="text" id="dlExpiryInput" placeholder="YYYY-MM-DD"
                autocomplete="off" autocorrect="off" spellcheck="false" />
-        <label for="addressInput">Address</label>
+        <label for="addressInput">Street Address</label>
         <input type="text" id="addressInput" placeholder="123 Main St"
                autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" />
+        <label for="cityInput">City</label>
+        <input type="text" id="cityInput" placeholder="St. John's"
+               autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" />
+        <label for="licProvinceInput">Province / State</label>
+        <input type="text" id="licProvinceInput" placeholder="NL" maxlength="2"
+               autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
         <label for="postalCodeInput">Postal Code</label>
         <input type="text" id="postalCodeInput" placeholder="A1A 1A1"
                autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
@@ -865,6 +874,57 @@
 
       <div class="error-msg" id="s1Error"></div>
       <div class="spacer"></div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Screen 1b: Additional driver (pickup)
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="sDriver">
+      <button class="return-back-btn" id="sDriverBack">← Back</button>
+      <div class="step-label">Step 1 of 5</div>
+      <div class="step-bar"></div>
+      <h1>Drivers</h1>
+      <p class="subtitle">Only drivers named on the rental agreement may drive the vehicle.</p>
+
+      <div class="protection-card">
+        <div class="protection-card__head">
+          <span class="protection-card__name">Add another driver?</span>
+          <span class="protection-card__price" id="driver2Price"></span>
+        </div>
+        <div class="protection-card__choices">
+          <button type="button" class="btn btn-secondary" id="driver2YesBtn" aria-pressed="false">Yes</button>
+          <button type="button" class="btn btn-secondary" id="driver2NoBtn" aria-pressed="false">No</button>
+        </div>
+      </div>
+
+      <div id="driver2Form" style="display:none;">
+        <button class="btn btn-primary" id="scanDriver2Btn" type="button">Scan Their License</button>
+        <label for="d2FirstNameInput">First Name</label>
+        <input type="text" id="d2FirstNameInput" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" />
+        <label for="d2LastNameInput">Last Name</label>
+        <input type="text" id="d2LastNameInput" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" />
+        <label for="d2LicenseInput">DL Number</label>
+        <input type="text" id="d2LicenseInput" placeholder="No spaces or dashes" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+        <label for="d2DobInput">Date of Birth</label>
+        <input type="text" id="d2DobInput" placeholder="YYYY-MM-DD" autocomplete="off" autocorrect="off" spellcheck="false" />
+        <label for="d2IssuedInput">Issued</label>
+        <input type="text" id="d2IssuedInput" placeholder="YYYY-MM-DD" autocomplete="off" autocorrect="off" spellcheck="false" />
+        <label for="d2ExpiryInput">Expiry</label>
+        <input type="text" id="d2ExpiryInput" placeholder="YYYY-MM-DD" autocomplete="off" autocorrect="off" spellcheck="false" />
+        <label for="d2AddressInput">Street Address</label>
+        <input type="text" id="d2AddressInput" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" />
+        <label for="d2CityInput">City</label>
+        <input type="text" id="d2CityInput" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" />
+        <label for="d2ProvinceInput">Province / State</label>
+        <input type="text" id="d2ProvinceInput" maxlength="2" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+        <label for="d2PostalInput">Postal Code</label>
+        <input type="text" id="d2PostalInput" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+      </div>
+
+      <div class="spacer"></div>
+      <div class="error-msg" id="sDriverError"></div>
+      <button class="btn btn-primary" id="sDriverNext" disabled>Continue →</button>
     </div>
 
 
@@ -969,8 +1029,11 @@
       <button class="return-back-btn" id="s6Back">← Back</button>
       <div class="step-label">Step 4 of 4</div>
       <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div></div>
-      <h1>Sign to Confirm</h1>
-      <p class="subtitle" id="s6Subtitle">By signing below you confirm you have inspected the vehicle and accept it in its current documented condition.</p>
+      <h1>Contract</h1>
+      <p class="subtitle" id="s6Subtitle">Review your rental agreement, then sign below to confirm it.</p>
+
+      <div id="contractSummary"></div>
+      <div id="contractAcks"></div>
 
       <div class="sig-wrap">
         <canvas id="sigCanvas" height="240"></canvas>
@@ -980,7 +1043,7 @@
       <div class="spacer"></div>
       <div class="error-msg" id="s6Error"></div>
       <button class="btn btn-secondary" id="clearSigBtn">Clear Signature</button>
-      <button class="btn btn-primary" id="submitBtn">Submit Inspection</button>
+      <button class="btn btn-primary" id="submitBtn">Confirm</button>
     </div>
 
 
@@ -1270,9 +1333,9 @@
     }
 
     // ── Screen routing ────────────────────────────────────────────────────────
-    const PICKUP_SCREENS = ['s1','s2','s4','s5','sProt','s6','s7'];
+    const PICKUP_SCREENS = ['s1','sDriver','s2','s4','s5','sProt','s6','s7'];
     const RETURN_SCREENS = ['s1','s8','s9','s9b','s10','s10b','s11'];
-    const ALL_SCREENS    = ['s1','s2','s4','s5','sProt','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel'];
+    const ALL_SCREENS    = ['s1','sDriver','s2','s4','s5','sProt','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel'];
 
     function goTo(id) {
       ALL_SCREENS.forEach(s => document.getElementById(s).classList.remove('active'));
@@ -1339,7 +1402,7 @@
     }
 
     // Parse an AAMVA-standard PDF417 driver's license barcode string.
-    // Returns { firstName, lastName, dlNumber, dob, expiry, address, postal, province }.
+    // Returns { firstName, lastName, dlNumber, dob, issued, expiry, address, city, postal, province }.
     function parseAAMVA(raw) {
       // The header, read to where the data starts. "ANSI " is followed by the
       // issuer number (6 digits), the AAMVA version (2), from version 02 on a
@@ -1434,44 +1497,104 @@
         // the form asks for it without.
         dlNumber: (fields['DAQ'] || '').replace(/[\s-]/g, ''),
         dob:      aamvaDate(fields['DBB']),
+        issued:   aamvaDate(fields['DBD']),
         expiry:   aamvaDate(fields['DBA']),
         address:  fields['DAG'] || '',
+        // DAI is the city. It was never read, so a scanned address had none.
+        city:     fields['DAI'] || '',
         postal,
         province: fields['DAJ'] || '',
       };
     }
 
-    // Populate the manual-entry form from a parsed AAMVA object and reveal the form.
-    function populateFromScan(parsed) {
+    // ── Drivers' licence details ──────────────────────────────────────────────
+    // The main driver's are on the first screen, an additional driver's on the
+    // Drivers screen. Both are read the same way and sent to complete_pickup,
+    // which checks them again and records them on the agreement.
+    const DRIVER_INPUTS = {
+      main: {
+        firstName: 'firstNameInput', lastName: 'lastNameInput', licenceNumber: 'licenseInput',
+        dateOfBirth: 'dobInput', licenceIssued: 'dlIssuedInput', licenceExpiry: 'dlExpiryInput',
+        street: 'addressInput', city: 'cityInput', province: 'licProvinceInput', postalCode: 'postalCodeInput',
+      },
+      d2: {
+        firstName: 'd2FirstNameInput', lastName: 'd2LastNameInput', licenceNumber: 'd2LicenseInput',
+        dateOfBirth: 'd2DobInput', licenceIssued: 'd2IssuedInput', licenceExpiry: 'd2ExpiryInput',
+        street: 'd2AddressInput', city: 'd2CityInput', province: 'd2ProvinceInput', postalCode: 'd2PostalInput',
+      },
+    };
+    const DRIVER_LABELS = {
+      firstName: 'first name', lastName: 'last name', licenceNumber: 'DL number',
+      dateOfBirth: 'date of birth', licenceIssued: 'issue date', licenceExpiry: 'expiry date',
+      street: 'street address', city: 'city', province: 'province or state', postalCode: 'postal code',
+    };
+    const DRIVER_DATES = ['dateOfBirth', 'licenceIssued', 'licenceExpiry'];
+
+    function readDriver(target) {
+      const ids = DRIVER_INPUTS[target];
+      const d = {};
+      Object.keys(ids).forEach(k => { d[k] = (document.getElementById(ids[k]).value || '').trim(); });
+      d.licenceNumber = d.licenceNumber.replace(/[\s-]/g, '').toUpperCase();
+      d.province = d.province.toUpperCase();
+      d.licenceProvince = d.province;
+      return d;
+    }
+
+    // What is missing or not a date, in words, for the message.
+    function driverProblems(d) {
+      const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(`${v}T00:00:00`).getTime());
+      return Object.keys(DRIVER_LABELS).filter(k => !d[k] || (DRIVER_DATES.includes(k) && !isDate(d[k])))
+        .map(k => DRIVER_LABELS[k] + (d[k] && DRIVER_DATES.includes(k) ? ' (as YYYY-MM-DD)' : ''));
+    }
+
+    // Which licence the scanner is reading: the main driver's or the
+    // additional driver's.
+    let scanTarget = 'main';
+
+    // Populate a licence form from a parsed AAMVA object and reveal it.
+    function populateFromScan(parsed, target = 'main') {
+      const ids = DRIVER_INPUTS[target];
       const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
-      set('firstNameInput',  parsed.firstName);
-      set('lastNameInput',   parsed.lastName);
-      set('licenseInput',    parsed.dlNumber.toUpperCase());
-      set('dobInput',        parsed.dob);
-      set('dlExpiryInput',   parsed.expiry);
-      set('addressInput',    parsed.address);
-      set('postalCodeInput', parsed.postal);
-      // Store province for saving to Supabase (no form field)
-      scannedProvince = parsed.province || '';
-      // Show the manual form so the customer can review pre-filled values
-      manualLicenseForm.style.display = 'block';
-      manualToggleBtn.textContent = 'Hide manual entry';
+      set(ids.firstName,     parsed.firstName);
+      set(ids.lastName,      parsed.lastName);
+      set(ids.licenceNumber, parsed.dlNumber.toUpperCase());
+      set(ids.dateOfBirth,   parsed.dob);
+      set(ids.licenceIssued, parsed.issued);
+      set(ids.licenceExpiry, parsed.expiry);
+      set(ids.street,        parsed.address);
+      set(ids.city,          parsed.city);
+      set(ids.province,      (parsed.province || '').toUpperCase());
+      set(ids.postalCode,    parsed.postal);
+      if (target === 'main') {
+        scannedProvince = parsed.province || '';
+        // Show the manual form so the customer can review pre-filled values
+        manualLicenseForm.style.display = 'block';
+        manualToggleBtn.textContent = 'Hide manual entry';
+      }
     }
 
     // Any scan that cannot finish: the reader did not load, the camera was
-    // refused, or no barcode could be read. The scanner closes and the manual
-    // form opens with the reason, so the customer always has a way forward.
+    // refused, or no barcode could be read. The scanner closes and the form
+    // opens with the reason, so the customer always has a way forward.
     function scanFallback(message) {
       closeScanModal();
-      manualLicenseForm.style.display = 'block';
-      manualToggleBtn.textContent = 'Hide manual entry';
-      document.getElementById('s1Error').textContent = message;
+      if (scanTarget === 'main') {
+        manualLicenseForm.style.display = 'block';
+        manualToggleBtn.textContent = 'Hide manual entry';
+        document.getElementById('s1Error').textContent = message;
+      } else {
+        document.getElementById('sDriverError').textContent = message;
+      }
     }
 
     scanModalClose.addEventListener('click', closeScanModal);
 
-    document.getElementById('scanLicenseBtn').addEventListener('click', async () => {
-      document.getElementById('s1Error').textContent = '';
+    document.getElementById('scanLicenseBtn').addEventListener('click', () => startLicenseScan('main'));
+    document.getElementById('scanDriver2Btn').addEventListener('click', () => startLicenseScan('d2'));
+
+    async function startLicenseScan(target) {
+      scanTarget = target;
+      document.getElementById(target === 'main' ? 's1Error' : 'sDriverError').textContent = '';
       scanModal.classList.add('open');
       scanStatus.textContent = 'Starting camera…';
 
@@ -1521,12 +1644,12 @@
           return;
         }
         closeScanModal();
-        populateFromScan(parsed);
+        populateFromScan(parsed, target);
       }).catch((e) => {
         console.warn('Barcode reader failed:', e);
         scanFallback('The license could not be scanned. Please enter your details below.');
       });
-    });
+    }
 
     function normalizePlate(s) {
       return String(s || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -1625,10 +1748,11 @@
       // sent: reservations has no columns for them yet.
       const dlVal     = document.getElementById('licenseInput').value.trim();
       const expiryVal = document.getElementById('dlExpiryInput').value.trim();
-      if (dlVal || expiryVal || scannedProvince) {
+      const licProvince = document.getElementById('licProvinceInput').value.trim().toUpperCase() || scannedProvince;
+      if (dlVal || expiryVal || licProvince) {
         const { data: licRes, error: licErr } = await supabase.rpc('save_reservation_licence', {
           code: session.proof.code, last_name: session.proof.lastName,
-          licence_number: dlVal || null, licence_expiry: expiryVal || null, licence_province: scannedProvince || null,
+          licence_number: dlVal || null, licence_expiry: expiryVal || null, licence_province: licProvince || null,
         });
         if (licErr || !licRes?.ok) {
           console.warn('Licence save FAILED:', licErr || licRes);
@@ -1688,13 +1812,27 @@
         // count is right from the first screen. A switch pickup is never
         // offered protection: the choices made at the first pickup stay on
         // the agreement.
+        // The main driver's licence goes on the contract, so all of it is
+        // needed before a pickup goes on.
+        const mainMissing = driverProblems(readDriver('main'));
+        if (mainMissing.length) {
+          manualLicenseForm.style.display = 'block';
+          manualToggleBtn.textContent = 'Hide manual entry';
+          document.getElementById('s1Error').textContent =
+            `Please complete your license details before continuing: ${mainMissing.join(', ')}.`;
+          vehicle = null;
+          flowType = 'pickup';
+          return;
+        }
         protectionAnswers = {};
         protectionChoices = [];
+        contractVin = null;
+        resetDriver2();
         await loadProtectionOffer();
         configureFlow();
         updatePickupStepLabels();
         buildDamageScreen();
-        goTo('s2');
+        goTo('sDriver');
       }
     });
 
@@ -1822,7 +1960,7 @@
       // Screen 6 — signature subtitle
       document.getElementById('s6Subtitle').textContent = isReturn
         ? 'By signing below you confirm you are returning the vehicle in the condition shown.'
-        : 'By signing below you confirm you have inspected the vehicle and accept it in its current documented condition.';
+        : 'Review your rental agreement, then sign below to confirm it.';
 
       // Screen 7 — done message
       document.getElementById('s7Title').textContent   = isReturn ? 'Thank you!' : 'You’re Good to Go!';
@@ -1830,6 +1968,60 @@
         ? 'Thank you for returning your vehicle. A team member will complete your rental shortly.'
         : 'Your inspection is complete and on file. Enjoy your rental.';
     }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 1b: Drivers
+    // ════════════════════════════════════════════════════════════════════════
+    // "Add another driver?" Yes opens a licence form for them, scanned or
+    // typed like the main driver's. Their daily charge is the company's price
+    // for this reservation's vehicle class and source, shown here and worked
+    // out again by the database.
+    let driver2Choice = null;   // null until answered, then true or false
+
+    // The terms lookup_reservation returned with the reservation.
+    const contractTerms = () => customerSession?.reservation?.contract || {};
+    const money = (n) => `$${(Number(n) || 0).toFixed(2)}`;
+
+    function resetDriver2() {
+      driver2Choice = null;
+      Object.values(DRIVER_INPUTS.d2).forEach(id => { document.getElementById(id).value = ''; });
+      document.getElementById('sDriverError').textContent = '';
+      const price = contractTerms().otherDriverPrice;
+      document.getElementById('driver2Price').textContent =
+        price != null && Number(price) > 0 ? `${money(price)} per day` : 'No charge';
+      renderDriver2Choice();
+    }
+
+    function renderDriver2Choice() {
+      const yes = document.getElementById('driver2YesBtn');
+      const no  = document.getElementById('driver2NoBtn');
+      yes.className = `btn ${driver2Choice === true ? 'btn-primary' : 'btn-secondary'}`;
+      no.className  = `btn ${driver2Choice === false ? 'btn-primary' : 'btn-secondary'}`;
+      yes.setAttribute('aria-pressed', String(driver2Choice === true));
+      no.setAttribute('aria-pressed', String(driver2Choice === false));
+      document.getElementById('driver2Form').style.display = driver2Choice === true ? 'block' : 'none';
+      document.getElementById('sDriverNext').disabled = driver2Choice === null;
+    }
+
+    document.getElementById('driver2YesBtn').addEventListener('click', () => { driver2Choice = true; renderDriver2Choice(); });
+    document.getElementById('driver2NoBtn').addEventListener('click', () => {
+      driver2Choice = false;
+      document.getElementById('sDriverError').textContent = '';
+      renderDriver2Choice();
+    });
+    document.getElementById('sDriverBack').addEventListener('click', () => goTo('s1'));
+    document.getElementById('sDriverNext').addEventListener('click', () => {
+      const err = document.getElementById('sDriverError');
+      if (driver2Choice === true) {
+        const missing = driverProblems(readDriver('d2'));
+        if (missing.length) {
+          err.textContent = `Please complete the other driver's details: ${missing.join(', ')}.`;
+          return;
+        }
+      }
+      err.textContent = '';
+      goTo('s2');
+    });
 
     // ════════════════════════════════════════════════════════════════════════
     // Screen 2 — Pre-Existing Damage
@@ -2175,8 +2367,7 @@
         goTo('sProt');
         return;
       }
-      sizeCanvas();
-      goTo('s6');
+      await openContract();
     });
 
     // ════════════════════════════════════════════════════════════════════════
@@ -2220,10 +2411,10 @@
       return true;
     }
 
-    // "Step x of n" and the segment bar on each pickup screen, for four steps
-    // or five depending on whether Protection is shown.
+    // "Step x of n" and the segment bar on each pickup screen, for five steps
+    // or six depending on whether Protection is shown.
     function updatePickupStepLabels() {
-      const steps = ['s2', 's4', 's5', 'sProt', 's6'].filter(id => id !== 'sProt' || protectionShown());
+      const steps = ['sDriver', 's2', 's4', 's5', 'sProt', 's6'].filter(id => id !== 'sProt' || protectionShown());
       steps.forEach((id, i) => {
         const screen = document.getElementById(id);
         screen.querySelector('.step-label').textContent = `Step ${i + 1} of ${steps.length}`;
@@ -2287,6 +2478,15 @@
           choices.appendChild(decline);
           card.appendChild(choices);
 
+          // Declining the damage waiver leaves the customer responsible up to
+          // the deductibles, so they are shown with the decline. The waiver is
+          // told apart from the company's other products by its name.
+          const ded = deductibleText();
+          if (a.accepted === false && isDamageWaiver(p) && ded) {
+            card.appendChild(el('p', 'protection-card__wording',
+              `Without this coverage you are responsible for damage to the vehicle up to your deductibles: ${ded}.`));
+          }
+
           if (a.accepted === false) {
             const ack = el('label', 'protection-card__ack');
             const box = document.createElement('input');
@@ -2306,6 +2506,17 @@
       updateProtectionNext();
     }
 
+    const isDamageWaiver = (p) => /damage|waiver|\bcdw\b|\bldw\b|collision/i.test(String(p?.name || ''));
+
+    // "Collision $500.00, Comprehensive $250.00", or '' when neither is set.
+    function deductibleText() {
+      const d = contractTerms().deductibles || {};
+      return [
+        d.collision != null ? `Collision ${money(d.collision)}` : null,
+        d.comprehensive != null ? `Comprehensive ${money(d.comprehensive)}` : null,
+      ].filter(Boolean).join(', ');
+    }
+
     function updateProtectionNext() {
       document.getElementById('sProtNext').disabled =
         !(protectionOffer || []).every(protectionAnswered);
@@ -2314,8 +2525,7 @@
     document.getElementById('sProtNext').addEventListener('click', () => {
       if (!(protectionOffer || []).every(protectionAnswered)) return;
       document.getElementById('sProtError').textContent = '';
-      sizeCanvas();
-      goTo('s6');
+      openContract();
     });
     document.getElementById('sProtBack').addEventListener('click', () => goTo('s5'));
 
@@ -2329,6 +2539,160 @@
           acknowledged: p.required ? false : (a.accepted === false && a.acknowledged === true),
         };
       });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 6: Contract
+    // ════════════════════════════════════════════════════════════════════════
+    // Everything the customer is agreeing to, then the company's
+    // acknowledgements, then the signature. Built with text nodes only, since
+    // names, addresses and the acknowledgements come from customer records and
+    // company staff. The charges are an estimate for the booked days; the
+    // database works out and records the other driver's charge and the
+    // deductibles itself, and the final bill is settled at return.
+    let contractVin = null;   // { vehicleId, vin } once read
+
+    async function openContract() {
+      const proof = customerSession?.proof;
+      if (vehicle?.id && proof && contractVin?.vehicleId !== vehicle.id) {
+        try {
+          const { data, error } = await supabase.rpc('lookup_vehicle_vin', {
+            code: proof.code, last_name: proof.lastName, vehicle_id: String(vehicle.id),
+          });
+          if (error) throw error;
+          contractVin = { vehicleId: vehicle.id, vin: data || '' };
+        } catch (e) {
+          console.warn('lookup_vehicle_vin failed:', e);
+          contractVin = null;
+        }
+      }
+      buildContract();
+      sizeCanvas();
+      goTo('s6');
+    }
+
+    const longDate = (iso) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''))) return iso || '\u2014';
+      return new Date(`${iso}T12:00:00`).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+    };
+
+    function buildContract() {
+      const res   = customerSession?.reservation || {};
+      const terms = contractTerms();
+      const v     = vehicle || {};
+      const el = (tag, cls, text) => {
+        const n = document.createElement(tag);
+        if (cls) n.className = cls;
+        if (text != null) n.textContent = text;
+        return n;
+      };
+      const card = (title, rows) => {
+        const c = el('div', 'protection-card');
+        c.appendChild(el('div', 'protection-card__name', title));
+        rows.filter(Boolean).forEach(([label, value]) => {
+          const r = el('div', 'protection-card__head');
+          r.style.marginBottom = '0';
+          r.appendChild(el('span', null, label));
+          r.appendChild(el('span', 'protection-card__price', value == null || value === '' ? '\u2014' : String(value)));
+          c.appendChild(r);
+        });
+        return c;
+      };
+
+      // Days from today, when the vehicle goes out, to the due date, at least one.
+      const today = new Date().toLocaleDateString('en-CA');
+      const to    = /^\d{4}-\d{2}-\d{2}$/.test(String(res.returnDate || '')) ? res.returnDate : null;
+      const days  = to ? Math.max(1, Math.round((new Date(`${to}T00:00:00`) - new Date(`${today}T00:00:00`)) / 86400000)) : 1;
+      const rate  = Number(res.dailyRate) || 0;
+
+      const drivers = [readDriver('main'), ...(driver2Choice ? [readDriver('d2')] : [])];
+      const coverages = vehicle?.switchPickup ? [] : (protectionOffer || []).map(p => ({
+        name: p.name, price: Number(p.pricePerDay) || 0,
+        accepted: p.required || protectionAnswers[String(p.productId)]?.accepted === true,
+      }));
+      const otherPrice = Number(terms.otherDriverPrice) || 0;
+
+      const rental = rate * days;
+      const additional = [
+        ...coverages.filter(c => c.accepted).map(c => [`${c.name} (${days} day${days === 1 ? '' : 's'} × ${money(c.price)})`, c.price * days]),
+        ...(driver2Choice ? [[`Other driver (${days} day${days === 1 ? '' : 's'} × ${money(otherPrice)})`, otherPrice * days]] : []),
+      ];
+      const additionalTotal = additional.reduce((s, [, n]) => s + n, 0);
+      const subtotal = rental + additionalTotal;
+      const taxes = (Array.isArray(res.salesTaxes) ? res.salesTaxes : [])
+        .filter(t => t && String(t.name || '').trim() && Number(t.rate) > 0)
+        .map(t => [`${String(t.name).trim()} ${Number(t.rate)}%`, Math.round(subtotal * Number(t.rate)) / 100]);
+      const total = subtotal + taxes.reduce((s, [, n]) => s + n, 0);
+
+      const summary = document.getElementById('contractSummary');
+      summary.innerHTML = '';
+
+      drivers.forEach((d, i) => summary.appendChild(card(i === 0 ? 'Main driver' : 'Other driver', [
+        ['Name', `${d.firstName} ${d.lastName}`],
+        ['Address', [d.street, d.city, [d.province, d.postalCode].filter(Boolean).join(' ')].filter(Boolean).join(', ')],
+        ['Date of birth', longDate(d.dateOfBirth)],
+        ['License', [d.licenceNumber, d.licenceProvince].filter(Boolean).join(', ')],
+        ['Issued', longDate(d.licenceIssued)],
+        ['Expires', longDate(d.licenceExpiry)],
+      ])));
+
+      summary.appendChild(card('Vehicle', [
+        ['Make and model', [v.make, v.model].filter(Boolean).join(' ')],
+        ['Plate', v.plate],
+        ['Province', v.province],
+        ['VIN', contractVin?.vin || ''],
+      ]));
+
+      summary.appendChild(card('Rental', [
+        ['Out', longDate(today)],
+        ['Due', to ? longDate(to) : ''],
+        ['Daily rate', money(rate)],
+      ]));
+
+      summary.appendChild(card('Coverages', vehicle?.switchPickup
+        ? [['Coverages', 'As on your rental agreement']]
+        : coverages.length
+          ? coverages.map(c => [c.name, c.accepted ? `${money(c.price)} per day` : 'Declined'])
+          : [['Coverages', 'None offered']]));
+
+      const ded = terms.deductibles || {};
+      summary.appendChild(card('Deductibles', [
+        ['Collision', ded.collision != null ? money(ded.collision) : 'Not set'],
+        ['Comprehensive', ded.comprehensive != null ? money(ded.comprehensive) : 'Not set'],
+      ]));
+
+      const charges = card('Charges', [
+        [`Vehicle (${days} day${days === 1 ? '' : 's'} × ${money(rate)})`, money(rental)],
+      ]);
+      charges.appendChild(el('div', 'protection-card__name', 'Additional charges'));
+      (additional.length ? additional : [['None', 0]]).forEach(([label, n]) => {
+        const r = el('div', 'protection-card__head');
+        r.style.marginBottom = '0';
+        r.appendChild(el('span', null, label));
+        r.appendChild(el('span', 'protection-card__price', money(n)));
+        charges.appendChild(r);
+      });
+      [['Additional charges total', additionalTotal], ['Subtotal', subtotal], ...taxes, ['Total', total]].forEach(([label, n]) => {
+        const r = el('div', 'protection-card__head');
+        r.style.marginBottom = '0';
+        r.appendChild(el('span', label === 'Total' ? 'protection-card__name' : null, label));
+        r.appendChild(el('span', label === 'Total' ? 'protection-card__name' : 'protection-card__price', money(n)));
+        charges.appendChild(r);
+      });
+      charges.appendChild(el('p', 'protection-card__wording',
+        `Estimated for ${days} day${days === 1 ? '' : 's'}. Final charges are confirmed when the vehicle is returned.`));
+      summary.appendChild(charges);
+
+      const acks = document.getElementById('contractAcks');
+      acks.innerHTML = '';
+      const ack = terms.acknowledgements;
+      if (ack && ack.body) {
+        const c = el('div', 'protection-card');
+        c.appendChild(el('div', 'protection-card__name', 'By signing, I acknowledge:'));
+        String(ack.body).split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+          .forEach(line => c.appendChild(el('p', 'protection-card__wording', line)));
+        acks.appendChild(c);
+      }
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -2390,7 +2754,7 @@
       const outcome = await submitInspection();
 
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Submit Inspection';
+      submitBtn.textContent = 'Confirm';
       if (!outcome.ok) {
         if (PROTECTION_RELOAD.includes(outcome.code) || PROTECTION_REVIEW.includes(outcome.code)) {
           if (PROTECTION_RELOAD.includes(outcome.code)) {
@@ -2481,6 +2845,8 @@
       protection_invalid:          'Something went wrong with your coverage choices. Please review them again, then sign.',
       protection_required:         'One of the coverage options is included with your rental and cannot be declined. Please review your choices.',
       protection_ack_required:     'Please tick the box for each coverage you decline.',
+      drivers_invalid:             'Some driver details are missing or not valid. Please go back and check the license details.',
+      acknowledgements_invalid:    'The rental terms could not be confirmed. Please start again or see a member of staff.',
     };
     // Refusals that mean the offer on screen is not the offer any more, or the
     // answers to it did not arrive whole: the offer is read again and the
@@ -2521,6 +2887,11 @@
         fuel_level:  FUEL_LABELS[fuelLevel] || 'Full',
         signature:   canvas.toDataURL('image/png'),
         photo_count: photos.length,
+        // The drivers and the acknowledgements version this contract shows.
+        // The charge for the other driver and the deductibles are worked out
+        // by the database, not sent.
+        drivers:            [readDriver('main'), ...(driver2Choice ? [readDriver('d2')] : [])],
+        acknowledgement_id: contractTerms().acknowledgements?.id || null,
       };
       // A switch pickup keeps the choices from the first pickup, and
       // complete_switch_pickup takes none.
@@ -2586,7 +2957,7 @@
     // ════════════════════════════════════════════════════════════════════════
     // Pickup back navigation
     // ════════════════════════════════════════════════════════════════════════
-    document.getElementById('s2Back').addEventListener('click', () => goTo('s1'));
+    document.getElementById('s2Back').addEventListener('click', () => goTo('sDriver'));
     document.getElementById('s4Back').addEventListener('click', () => goTo('s2'));
     document.getElementById('s5Back').addEventListener('click', () => goTo('s4'));
     document.getElementById('s6Back').addEventListener('click', () => goTo(protectionShown() ? 'sProt' : 's5'));
