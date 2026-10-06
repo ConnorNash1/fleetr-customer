@@ -1302,7 +1302,18 @@
     const RETURN_SCREENS = ['s1','s8','s9','s9b','s10','s10b','s11'];
     const ALL_SCREENS    = ['s1','sDriver','s2','s4','sProt','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel'];
 
+    // A field typed into on the screen being left keeps the focus, and the
+    // iPhone keyboard with it, after its screen is hidden. iPhone Safari then
+    // scrolls the page to keep that hidden field in view whenever the layout
+    // changes, which is what made the return fuel slider jump the page as its
+    // label changed. Leaving a screen lets go of the focus.
+    function releaseFocus() {
+      const a = document.activeElement;
+      if (a && a !== document.body && typeof a.blur === 'function') a.blur();
+    }
+
     function goTo(id) {
+      releaseFocus();
       ALL_SCREENS.forEach(s => document.getElementById(s).classList.remove('active'));
       document.getElementById(id).classList.add('active');
       const chain = flowType === 'return'
@@ -2270,6 +2281,11 @@
       const onTouch = (e) => {
         if (e.touches.length !== 1) return;
         e.preventDefault();
+        // preventDefault also stops the tap from taking the focus off a field
+        // typed into earlier, such as the odometer, so it is let go of here.
+        // Otherwise iPhone Safari keeps scrolling to that field each time the
+        // value label below changes, and the page jumps during the drag.
+        if (e.type === 'touchstart' && document.activeElement !== range) releaseFocus();
         setFromTouch(e.touches[0]);
       };
       range.addEventListener('touchstart', onTouch, { passive: false });
