@@ -250,15 +250,6 @@
     #s1 label { font-family: 'Inter', sans-serif; color: #42a4ff; }
     #s1 .btn { font-weight: 400; }
 
-    /* ── Screen 5 — white odometer input ─────────────────────── */
-    #s5 input[type="number"] {
-      background: #ffffff;
-      border: 1px solid #d0d8e0;
-      color: #1F1E1D;
-      font-family: 'Inter', sans-serif;
-    }
-    #s5 input[type="number"]:focus { border-color: #42a4ff; }
-    #s5 input[type="number"]::placeholder { color: #aab4bf; }
 
     /* ── Info box ─────────────────────────────────────────────── */
     /* Shown on the done screens when a photo failed to upload. */
@@ -562,8 +553,6 @@
     }
     .skip-link:active { opacity: 0.6; }
 
-    /* ── Screen 5 labels ─────────────────────────────────────── */
-    #s5 label { color: #42a4ff; }
 
     /* ── Signature ────────────────────────────────────────────── */
     .sig-wrap {
@@ -971,37 +960,10 @@
       <button class="btn btn-primary" id="addPhotoBtn">Add Photos</button>
 
       <div class="spacer"></div>
+      <div class="error-msg" id="s4Error"></div>
       <button class="btn btn-primary" id="s4Next">Continue →</button>
     </div>
 
-
-    <!-- ═══════════════════════════════════════════════════════════
-         Screen 5 — Odometer & Fuel
-    ═══════════════════════════════════════════════════════════ -->
-    <div class="screen" id="s5">
-      <button class="return-back-btn" id="s5Back">← Back</button>
-      <div class="step-label">Step 3 of 4</div>
-      <div class="step-bar"><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg active"></div><div class="step-bar__seg"></div></div>
-      <h1>Odometer &amp; Fuel</h1>
-      <p class="subtitle">Take a photo of the odometer and fuel gauge, or enter the readings manually.</p>
-
-      <img class="odo-preview" id="odoPreview" alt="Odometer" />
-      <button class="btn btn-primary" id="takeOdoBtn">Take Photo of Dash</button>
-
-      <label for="mileageInput">Odometer Reading (km)</label>
-      <input type="number" id="mileageInput" placeholder="e.g. 42 500" min="0" step="1" />
-
-      <label>Fuel Level</label>
-      <div class="fuel-value" id="fuelValueLabel">Empty</div>
-      <input type="range" id="fuelRange" min="0" max="8" value="0" step="1" />
-      <div class="fuel-labels">
-        <span>Empty</span><span>¼</span><span>½</span><span>¾</span><span>Full</span>
-      </div>
-
-      <div class="spacer"></div>
-      <div class="error-msg" id="s5Error"></div>
-      <button class="btn btn-primary" id="s5Next">Continue →</button>
-    </div>
 
 
     <!-- ═══════════════════════════════════════════════════════════
@@ -1275,9 +1237,6 @@
     // reservation. While set, the token stands in for the code and last name.
     let appLinkToken = null;
     let photos    = [];
-    let odoPhoto  = null;
-    let mileage   = '';
-    let fuelLevel = 0;
 
     // Protection, from lookup_protection_offer (fleetr-infra). null means the
     // offer could not be read yet; an empty list means nothing is offered, and
@@ -1316,9 +1275,15 @@
       if (!Number.isFinite(n)) return null;
       return distanceUnit() === 'mi' ? Math.round(n * KM_PER_MI) : n;
     }
+    // A stored kilometre reading, whole, in the company's unit, or ''.
+    function formatOdometer(km) {
+      const n = Number(km);
+      if (km === null || km === undefined || km === '' || !Number.isFinite(n)) return '';
+      const shown = distanceUnit() === 'mi' ? Math.round(n / KM_PER_MI) : Math.round(n);
+      return `${shown.toLocaleString('en-CA')} ${distanceUnit()}`;
+    }
     function applyDistanceUnitLabels() {
       const label = `Odometer Reading (${distanceUnit()})`;
-      document.querySelector('label[for="mileageInput"]').textContent       = label;
       document.querySelector('label[for="returnMileageInput"]').textContent = label;
     }
 
@@ -1333,9 +1298,9 @@
     }
 
     // ── Screen routing ────────────────────────────────────────────────────────
-    const PICKUP_SCREENS = ['s1','sDriver','s2','s4','s5','sProt','s6','s7'];
+    const PICKUP_SCREENS = ['s1','sDriver','s2','s4','sProt','s6','s7'];
     const RETURN_SCREENS = ['s1','s8','s9','s9b','s10','s10b','s11'];
-    const ALL_SCREENS    = ['s1','sDriver','s2','s4','s5','sProt','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel'];
+    const ALL_SCREENS    = ['s1','sDriver','s2','s4','sProt','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel'];
 
     function goTo(id) {
       ALL_SCREENS.forEach(s => document.getElementById(s).classList.remove('active'));
@@ -1826,7 +1791,7 @@
         }
         protectionAnswers = {};
         protectionChoices = [];
-        contractVin = null;
+        contractVehicle = null;
         resetDriver2();
         await loadProtectionOffer();
         configureFlow();
@@ -2282,7 +2247,6 @@
       });
     }
 
-    document.getElementById('s4Next').addEventListener('click', () => goTo('s5'));
 
     // A fuel slider driven by the finger directly. iPhone Safari does not
     // honour touch-action on a range input and lets a drag that strays even
@@ -2313,52 +2277,24 @@
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 5 — Odometer & Fuel
+    // After Photos of Concern: Coverages, or straight to the Contract
     // ════════════════════════════════════════════════════════════════════════
-    const odoPreview    = document.getElementById('odoPreview');
-    const fuelRange     = document.getElementById('fuelRange');
-    const fuelLabel     = document.getElementById('fuelValueLabel');
-
-    // Live camera only; see openLiveCamera. Taking it again replaces it.
-    document.getElementById('takeOdoBtn').addEventListener('click', () => {
-      openLiveCamera({
-        title: 'Odometer',
-        multiple: false,
-        onPhoto: f => {
-          odoPhoto = f;
-          odoPreview.src = URL.createObjectURL(f);
-          odoPreview.style.display = 'block';
-        },
-      });
-    });
-
-    lockSliderDrag(fuelRange);
-    fuelRange.addEventListener('input', () => {
-      fuelLevel = parseInt(fuelRange.value);
-      fuelLabel.textContent = FUEL_LABELS[fuelLevel];
-    });
-
-    document.getElementById('s5Next').addEventListener('click', async () => {
-      const mileageVal = document.getElementById('mileageInput').value.trim();
-      const s5Error    = document.getElementById('s5Error');
-      if (!mileageVal) {
-        s5Error.textContent = 'Please enter the odometer reading before continuing.';
-        document.getElementById('mileageInput').focus();
-        return;
-      }
-      s5Error.textContent = '';
-      mileage   = mileageVal;
-      fuelLevel = parseInt(fuelRange.value);
+    // The customer does not enter the odometer or fuel at pickup: they do not
+    // have the keys yet. The starting readings are the vehicle's own last ones,
+    // shown on the Contract and recorded by the database.
+    document.getElementById('s4Next').addEventListener('click', async () => {
+      const s4Error = document.getElementById('s4Error');
+      s4Error.textContent = '';
       // The offer could not be read at lookup: try again before going on, so
       // a customer with products to answer is not sent straight to sign.
       if (protectionOffer === null) {
-        const s5Next = document.getElementById('s5Next');
-        s5Next.disabled = true;
+        const s4Next = document.getElementById('s4Next');
+        s4Next.disabled = true;
         const loaded = await loadProtectionOffer();
-        s5Next.disabled = false;
+        s4Next.disabled = false;
         updatePickupStepLabels();
         if (!loaded) {
-          s5Error.textContent = 'Unable to connect. Please try again.';
+          s4Error.textContent = 'Unable to connect. Please try again.';
           return;
         }
       }
@@ -2411,10 +2347,10 @@
       return true;
     }
 
-    // "Step x of n" and the segment bar on each pickup screen, for five steps
-    // or six depending on whether Protection is shown.
+    // "Step x of n" and the segment bar on each pickup screen, for four steps
+    // or five depending on whether Protection is shown.
     function updatePickupStepLabels() {
-      const steps = ['sDriver', 's2', 's4', 's5', 'sProt', 's6'].filter(id => id !== 'sProt' || protectionShown());
+      const steps = ['sDriver', 's2', 's4', 'sProt', 's6'].filter(id => id !== 'sProt' || protectionShown());
       steps.forEach((id, i) => {
         const screen = document.getElementById(id);
         screen.querySelector('.step-label').textContent = `Step ${i + 1} of ${steps.length}`;
@@ -2527,7 +2463,7 @@
       document.getElementById('sProtError').textContent = '';
       openContract();
     });
-    document.getElementById('sProtBack').addEventListener('click', () => goTo('s5'));
+    document.getElementById('sProtBack').addEventListener('click', () => goTo('s4'));
 
     // What goes to complete_pickup: one answer per product offered.
     function protectionPayload() {
@@ -2550,20 +2486,24 @@
     // company staff. The charges are an estimate for the booked days; the
     // database works out and records the other driver's charge and the
     // deductibles itself, and the final bill is settled at return.
-    let contractVin = null;   // { vehicleId, vin } once read
+    // { vehicleId, vin, startOdometer, startFuelLevel } once read. The
+    // starting readings are the vehicle's last recorded ones, from
+    // lookup_vehicle_contract (fleetr-infra, pickup_readings.sql), shown
+    // read-only; complete_pickup records the same readings itself.
+    let contractVehicle = null;
 
     async function openContract() {
       const proof = customerSession?.proof;
-      if (vehicle?.id && proof && contractVin?.vehicleId !== vehicle.id) {
+      if (vehicle?.id && proof && contractVehicle?.vehicleId !== vehicle.id) {
         try {
-          const { data, error } = await supabase.rpc('lookup_vehicle_vin', {
+          const { data, error } = await supabase.rpc('lookup_vehicle_contract', {
             code: proof.code, last_name: proof.lastName, vehicle_id: String(vehicle.id),
           });
           if (error) throw error;
-          contractVin = { vehicleId: vehicle.id, vin: data || '' };
+          contractVehicle = { vehicleId: vehicle.id, ...(data || {}) };
         } catch (e) {
-          console.warn('lookup_vehicle_vin failed:', e);
-          contractVin = null;
+          console.warn('lookup_vehicle_contract failed:', e);
+          contractVehicle = null;
         }
       }
       buildContract();
@@ -2640,7 +2580,9 @@
         ['Make and model', [v.make, v.model].filter(Boolean).join(' ')],
         ['Plate', v.plate],
         ['Province', v.province],
-        ['VIN', contractVin?.vin || ''],
+        ['VIN', contractVehicle?.vin || ''],
+        ['Odometer', formatOdometer(contractVehicle?.startOdometer) || 'Not on record'],
+        ['Fuel', contractVehicle?.startFuelLevel || 'Not on record'],
       ]));
 
       summary.appendChild(card('Rental', [
@@ -2872,6 +2814,9 @@
     // A vehicle flagged for maintenance comes back as needs_pm: opening a
     // rental on it is for an Admin to decide, so the customer is sent to staff
     // and nothing is opened.
+    // The starting readings complete_pickup recorded, for the done screen.
+    let pickupReadings = { odometer: null, fuelLevel: null };
+
     async function submitInspection() {
       const proof = customerSession?.proof;
       if (!proof || !vehicle?.id) {
@@ -2883,8 +2828,10 @@
         code:        proof.code,
         last_name:   proof.lastName,
         vehicle_id:  String(vehicle.id),
-        odometer:    mileage ? odometerToKm(mileage) : null,
-        fuel_level:  FUEL_LABELS[fuelLevel] || 'Full',
+        // Not taken from the app: the database uses the vehicle's own last
+        // readings and ignores these.
+        odometer:    null,
+        fuel_level:  null,
         signature:   canvas.toDataURL('image/png'),
         photo_count: photos.length,
         // The drivers and the acknowledgements version this contract shows.
@@ -2910,10 +2857,10 @@
       }
       console.log(fn + ' ok:', result.rentalAgreementId);
       protectionChoices = Array.isArray(result.protectionChoices) ? result.protectionChoices : [];
+      pickupReadings = { odometer: result.startOdometer ?? null, fuelLevel: result.startFuelLevel ?? null };
 
       const upload = await uploadAgreementPhotos(result.photoPath, [
         ...photos.map(file => ({ name: 'pickup-damage', file })),
-        ...(odoPhoto ? [{ name: 'pickup-odometer', file: odoPhoto }] : []),
       ]);
       return { ok: true, photosFailed: upload.failed.length };
     }
@@ -2923,7 +2870,6 @@
     // ════════════════════════════════════════════════════════════════════════
     function buildDoneScreen() {
       const v          = vehicle;
-      const fuelStr    = FUEL_LABELS[fuelLevel] || 'Full';
       const dateStr    = new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
 
       const rows = [
@@ -2931,8 +2877,8 @@
         ['Vehicle',  `${v.make} ${v.model}`],
         ['Class',    v.vehicleClass],
         ['Date',     dateStr],
-        mileage ? ['Odometer', `${parseInt(mileage).toLocaleString('en-CA')} ${distanceUnit()}`] : null,
-        ['Fuel',     fuelStr],
+        formatOdometer(pickupReadings.odometer) ? ['Odometer', formatOdometer(pickupReadings.odometer)] : null,
+        pickupReadings.fuelLevel ? ['Fuel', pickupReadings.fuelLevel] : null,
         // The protection the customer accepted, as complete_pickup recorded
         // it. Left out when nothing was offered. Escaped, since product names
         // are written by the company's staff and this row is HTML.
@@ -2959,8 +2905,7 @@
     // ════════════════════════════════════════════════════════════════════════
     document.getElementById('s2Back').addEventListener('click', () => goTo('sDriver'));
     document.getElementById('s4Back').addEventListener('click', () => goTo('s2'));
-    document.getElementById('s5Back').addEventListener('click', () => goTo('s4'));
-    document.getElementById('s6Back').addEventListener('click', () => goTo(protectionShown() ? 'sProt' : 's5'));
+    document.getElementById('s6Back').addEventListener('click', () => goTo(protectionShown() ? 'sProt' : 's4'));
 
     // ════════════════════════════════════════════════════════════════════════
     // Screen 8 — Return · Step 1 of 5 · Odometer
