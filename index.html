@@ -1234,6 +1234,28 @@
 
     const FUEL_LABELS = ['Empty', '⅛', '¼', '⅜', '½', '⅝', '¾', '⅞', 'Full'];
 
+    // ── Company units ─────────────────────────────────────────────────────────
+    // The company's distance unit, returned by lookup_reservation with the
+    // reservation (fleetr-infra customer_units.sql). Readings are typed in it
+    // and sent in whole kilometres, the way fleetr-internal converts, so every
+    // stored odometer figure stays in kilometres. Anything but 'mi', including
+    // a lookup from before the setting existed, is kilometres. Fuel is only
+    // ever a gauge level here, so there is no volume to convert.
+    const KM_PER_MI = 1.609344;
+    function distanceUnit() {
+      return customerSession?.reservation?.distanceUnit === 'mi' ? 'mi' : 'km';
+    }
+    function odometerToKm(value) {
+      const n = parseInt(value, 10);
+      if (!Number.isFinite(n)) return null;
+      return distanceUnit() === 'mi' ? Math.round(n * KM_PER_MI) : n;
+    }
+    function applyDistanceUnitLabels() {
+      const label = `Odometer Reading (${distanceUnit()})`;
+      document.querySelector('label[for="mileageInput"]').textContent       = label;
+      document.querySelector('label[for="returnMileageInput"]').textContent = label;
+    }
+
     // ── Gas collection ────────────────────────────────────────────────────────
     // Fuel is stored on rental_agreements as a display label ('¾', 'Full'), not a
     // number, so the charge math has to map the label back to a fraction first.
@@ -1581,6 +1603,7 @@
 
       const { session, ...found } = result;
       customerSession = session;
+      applyDistanceUnitLabels();
 
       // A new customer starts with no photos of concern. The list used to
       // carry over, so the next customer saw the last one's photos and they
@@ -2482,7 +2505,7 @@
         code:        proof.code,
         last_name:   proof.lastName,
         vehicle_id:  String(vehicle.id),
-        odometer:    mileage ? parseInt(mileage, 10) : null,
+        odometer:    mileage ? odometerToKm(mileage) : null,
         fuel_level:  FUEL_LABELS[fuelLevel] || 'Full',
         signature:   canvas.toDataURL('image/png'),
         photo_count: photos.length,
@@ -2525,7 +2548,7 @@
         ['Vehicle',  `${v.make} ${v.model}`],
         ['Class',    v.vehicleClass],
         ['Date',     dateStr],
-        mileage ? ['Odometer', `${parseInt(mileage).toLocaleString('en-CA')} km`] : null,
+        mileage ? ['Odometer', `${parseInt(mileage).toLocaleString('en-CA')} ${distanceUnit()}`] : null,
         ['Fuel',     fuelStr],
         // The protection the customer accepted, as complete_pickup recorded
         // it. Left out when nothing was offered. Escaped, since product names
@@ -2737,7 +2760,7 @@
       const { data: result, error } = await supabase.rpc('complete_return', {
         code:               proof.code,
         last_name:          proof.lastName,
-        odometer:           returnMileage ? parseInt(returnMileage, 10) : null,
+        odometer:           returnMileage ? odometerToKm(returnMileage) : null,
         fuel_level:         FUEL_LABELS[returnFuelLevel] || 'Full',
         has_damage:         returnHasDamage,
         damage_description: returnHasDamage ? returnDamageDescription : null,
