@@ -1545,7 +1545,6 @@
 
     findBtn.addEventListener('click', async () => {
       const rawResCode  = resCodeEl.value.replace(/\s/g, '').toUpperCase();
-      const rawFirstName = document.getElementById('firstNameInput').value.trim();
       const rawLastName  = document.getElementById('lastNameInput').value.trim();
       const rawPlate    = plateEl.value.trim().toUpperCase();
       const rawProvince = plateProvinceEl.value;
@@ -1553,7 +1552,7 @@
       customerSession = null;
 
       if (!rawResCode)                    { s1Error.textContent = 'Please enter your reservation code.'; return; }
-      if (!rawFirstName || !rawLastName)  { s1Error.textContent = 'Please enter your first and last name.'; return; }
+      if (!rawLastName)                   { s1Error.textContent = 'Please enter your last name.'; return; }
       if (!rawPlate)                      { s1Error.textContent = 'Please enter the license plate number.'; return; }
       if (!rawProvince)                   { s1Error.textContent = 'Please choose the province or state on the license plate.'; return; }
 
@@ -1562,7 +1561,7 @@
 
       let result = null;
       try {
-        result = await lookupReservation(rawResCode, rawFirstName, rawLastName, rawPlate, rawProvince);
+        result = await lookupReservation(rawResCode, rawLastName, rawPlate, rawProvince);
       } catch (e) {
         console.warn('lookupReservation failed:', e);
         result = null;
@@ -1600,7 +1599,7 @@
       const expiryVal = document.getElementById('dlExpiryInput').value.trim();
       if (dlVal || expiryVal || scannedProvince) {
         const { data: licRes, error: licErr } = await supabase.rpc('save_reservation_licence', {
-          code: session.proof.code, first_name: session.proof.firstName, last_name: session.proof.lastName,
+          code: session.proof.code, last_name: session.proof.lastName,
           licence_number: dlVal || null, licence_expiry: expiryVal || null, licence_province: scannedProvince || null,
         });
         if (licErr || !licRes?.ok) {
@@ -1678,22 +1677,22 @@
     //
     // A failed call is thrown, so the caller says "Unable to connect" rather
     // than blaming what the customer typed. A null answer means no match.
-    async function lookupReservation(resCode, firstName, lastName, plate, province) {
+    async function lookupReservation(resCode, lastName, plate, province) {
       console.log('--- lookupReservation ---');
       console.log('Input resCode (entered):', resCode);
       console.log('Input plate (entered):', plate, '| province:', province);
 
-      // Step 1: code and name together. The function normalises the code to
-      // the stored "ABC 123 456" form and compares the name ignoring case. A
-      // wrong code and a wrong name are deliberately indistinguishable, so
-      // there is one message for both.
+      // Step 1: code and last name together. The function normalises the
+      // code to the stored "ABC 123 456" form and compares the last name
+      // ignoring case. A wrong code and a wrong name are deliberately
+      // indistinguishable, so there is one message for both.
       const { data: res, error: resErr } = await supabase.rpc('lookup_reservation', {
-        code: resCode, first_name: firstName, last_name: lastName,
+        code: resCode, last_name: lastName,
       });
       if (resErr) throw resErr;
       console.log('Step 1 - reservation found:', !!res);
       if (!res) {
-        return { error: 'Reservation not found. Check the reservation code and the name on it, then try again.' };
+        return { error: 'Reservation not found. Check the reservation code and the last name on it, then try again.' };
       }
 
       // Step 2: the vehicle, by plate and province, in this reservation's
@@ -1709,25 +1708,25 @@
       }
 
       // Step 3: whether this is a pickup or a return, from the reservation's
-      // own rental agreement. Checked with the same code and name again.
+      // own rental agreement. Checked with the same code and last name again.
       const { data: status, error: statusErr } = await supabase.rpc('lookup_rental_status', {
-        code: resCode, first_name: firstName, last_name: lastName,
+        code: resCode, last_name: lastName,
       });
       if (statusErr) throw statusErr;
       if (!status) {
-        return { error: 'Reservation not found. Check the reservation code and the name on it, then try again.' };
+        return { error: 'Reservation not found. Check the reservation code and the last name on it, then try again.' };
       }
       resCode = res.resCode;
       const raRow          = status.rentalAgreement;
       const raStatus       = raRow?.status || '';
       const raId           = raRow?.id || null;
       const raFuelAtPickup = raRow?.fuelAtPickup || null;
-      // The code and name that proved this reservation, kept so the pickup and
+      // The code and last name that proved this reservation, kept so the pickup and
       // return writes can prove it again: every write function re-checks them
       // rather than trusting anything the page holds.
       const session        = {
         operatorId: res.operatorId, locationId: res.locationId, reservation: res,
-        proof: { code: res.resCode, firstName, lastName },
+        proof: { code: res.resCode, lastName },
       };
 
       // If an RA exists but is NOT open_rental_agreement, block — can't pick up or return
@@ -2167,7 +2166,7 @@
       const proof = customerSession?.proof;
       if (!proof) { protectionOffer = null; return false; }
       const { data, error } = await supabase.rpc('lookup_protection_offer', {
-        code: proof.code, first_name: proof.firstName, last_name: proof.lastName,
+        code: proof.code, last_name: proof.lastName,
       });
       if (error || !Array.isArray(data)) {
         if (error) console.warn('lookup_protection_offer failed:', error);
@@ -2481,7 +2480,6 @@
       const fn = vehicle.switchPickup ? 'complete_switch_pickup' : 'complete_pickup';
       const args = {
         code:        proof.code,
-        first_name:  proof.firstName,
         last_name:   proof.lastName,
         vehicle_id:  String(vehicle.id),
         odometer:    mileage ? parseInt(mileage, 10) : null,
@@ -2738,7 +2736,6 @@
 
       const { data: result, error } = await supabase.rpc('complete_return', {
         code:               proof.code,
-        first_name:         proof.firstName,
         last_name:          proof.lastName,
         odometer:           returnMileage ? parseInt(returnMileage, 10) : null,
         fuel_level:         FUEL_LABELS[returnFuelLevel] || 'Full',
