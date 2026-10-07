@@ -2352,14 +2352,24 @@
         return false;
       }
       protectionOffer = data;
+      // A reservation booked on fleetr.ai starts from the choices made there
+      // (bookedChoice, with an accepted one at its booked price). A decline
+      // still needs its acknowledgement ticked here, so it starts unticked.
+      const booked = (p) => p.bookedChoice === true ? { accepted: true, acknowledged: false }
+        : p.bookedChoice === false ? { accepted: false, acknowledged: false }
+        : { accepted: null, acknowledged: false };
       const kept = {};
       data.forEach(p => {
         const id = String(p.productId);
         kept[id] = p.required
           ? { accepted: true, acknowledged: false }
-          : (protectionAnswers[id] || { accepted: null, acknowledged: false });
+          : (protectionAnswers[id] || booked(p));
       });
       protectionAnswers = kept;
+      const subtitle = document.querySelector('#sProt .subtitle');
+      if (subtitle) subtitle.textContent = data.some(p => typeof p.bookedChoice === 'boolean')
+        ? 'Your choices from your fleetr.ai booking are selected, at the prices you booked. You can still change them. Each one is charged per day.'
+        : 'Choose the coverages you want for this rental. Each one is charged per day.';
       return true;
     }
 
