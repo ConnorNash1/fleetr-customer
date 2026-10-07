@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="theme-color" content="#1F1E1D" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="theme-color" content="#F9F9F7" />
   <title>fleetr vehicle inspection</title>
   <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -15,30 +15,48 @@
   <link rel="manifest" href="/site.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap');
+
+    /* The fleetr.ai palette. Terracotta is the only accent and marks actions
+       and active states; everything else is one of the neutrals. */
+    :root {
+      --paper:    #F9F9F7;
+      --surface:  #F1F0EC;
+      --line:     #E3E2DE;
+      --muted:    #8A8985;
+      --body:     #5C5B57;
+      --ink:      #1F1E1D;
+      --terra:    #F4845F;
+      --terra-dk: #E06D47;
+      --shadow:    0 1px 2px rgba(31, 30, 29, 0.06), 0 8px 24px rgba(31, 30, 29, 0.08);
+      --tactile:   inset 0 -3px 0 rgba(31, 30, 29, 0.16), 0 1px 2px rgba(31, 30, 29, 0.12);
+    }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     html, body {
       height: 100%;
-      background: #F9F9F7;
-      color: #F9F9F7;
-      font-family: 'Inter', sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-font-smoothing: antialiased;
       -webkit-tap-highlight-color: transparent;
       overscroll-behavior: none;
     }
+    ::selection { background: var(--line); }
+    :focus-visible { outline: 2px solid var(--terra); outline-offset: 3px; border-radius: 4px; }
 
     /* ── Progress bar ─────────────────────────────────────────── */
     .progress-bar {
       position: fixed;
       top: 0; left: 0; right: 0;
       height: 3px;
-      background: #111d1d;
+      background: var(--line);
       z-index: 200;
     }
     .progress-fill {
       height: 100%;
-      background: #42a4ff;
+      background: var(--terra);
       transition: width 0.45s cubic-bezier(.4,0,.2,1);
     }
 
@@ -64,75 +82,87 @@
       width: 150px;
       margin: 0 auto 28px;
     }
+    /* The fleetr wordmark, set like the one on fleetr.ai. */
+    .wordmark {
+      font-size: 3rem;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      text-align: center;
+      margin-bottom: 36px;
+    }
 
     /* ── Typography ───────────────────────────────────────────── */
     h1 {
-      font-size: 1.65rem;
-      font-weight: 700;
-      color: #1F1E1D;
+      font-size: 1.75rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--ink);
       text-align: center;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
     }
     .subtitle {
-      font-size: 0.95rem;
-      color: #6b8090;
+      font-size: 0.97rem;
+      color: var(--body);
       text-align: center;
       line-height: 1.55;
       margin-bottom: 32px;
     }
     .step-label {
       font-size: 0.75rem;
-      color: #42a4ff;
-      letter-spacing: 0.12em;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: 0.1em;
       text-transform: uppercase;
       text-align: center;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
     }
     .optional-badge {
       display: block;
       text-align: center;
       background: none;
-      color: #6b8090;
-      font-family: 'Inter', sans-serif;
-      font-size: 0.78rem;
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 600;
       padding: 0;
-      letter-spacing: 0.07em;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
       margin: 0 auto 20px;
     }
 
     /* ── Vehicle card ─────────────────────────────────────────── */
     .vehicle-card {
-      background: #ffffff;
-      border: 1px solid #d0d8e0;
+      background: var(--surface);
+      border: 1px solid var(--line);
       border-radius: 14px;
       padding: 18px 20px;
       margin-bottom: 20px;
     }
     .vehicle-card .v-plate {
       font-size: 1.5rem;
-      font-weight: 700;
-      color: #42a4ff;
-      letter-spacing: 0.1em;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: 0.08em;
     }
     .vehicle-card .v-detail {
       font-size: 0.9rem;
-      color: #6b8090;
+      color: var(--body);
       margin-top: 4px;
     }
     .vehicle-card .v-winter {
       font-size: 0.88rem;
-      color: #42a4ff;
+      font-weight: 600;
+      color: var(--ink);
       margin-top: 6px;
     }
 
     /* ── Form elements ────────────────────────────────────────── */
     label {
       display: block;
-      font-size: 0.78rem;
-      color: #6b8090;
-      letter-spacing: 0.07em;
-      text-transform: uppercase;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--ink);
       margin-bottom: 7px;
     }
     input[type="text"],
@@ -141,36 +171,37 @@
     select,
     textarea {
       width: 100%;
-      background: #0a1818;
-      border: 1px solid #1a2e2e;
-      border-radius: 11px;
-      color: #F9F9F7;
-      font-family: 'Lekton', monospace;
-      font-size: 1.1rem;
-      padding: 15px 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 1rem;
+      padding: 14px 15px;
       margin-bottom: 22px;
       outline: none;
       appearance: none;
       -webkit-appearance: none;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
     input[type="text"]:focus,
     input[type="number"]:focus,
     input[type="password"]:focus,
-    select:focus { border-color: #42a4ff; }
-    input::placeholder { color: #2a3a3a; }
-    select option { background: #0a1818; }
+    select:focus,
+    textarea:focus { border-color: var(--terra); box-shadow: 0 0 0 1px var(--terra); }
+    input::placeholder, textarea::placeholder { color: var(--muted); }
+    select option { background: var(--paper); color: var(--ink); }
 
     /* Custom select arrow */
     .select-wrap { position: relative; margin-bottom: 22px; }
-    .select-wrap select { margin-bottom: 0; }
+    .select-wrap select { margin-bottom: 0; padding-right: 40px; }
     .select-wrap::after {
       content: '▾';
       position: absolute;
       right: 16px;
       top: 50%;
       transform: translateY(-50%);
-      color: #6b8090;
+      color: var(--ink);
       pointer-events: none;
       font-size: 1rem;
     }
@@ -182,7 +213,9 @@
        stops the browser treating a drag on the slider as a scroll. */
     input[type="range"] {
       width: 100%;
-      accent-color: #42a4ff;
+      accent-color: var(--terra);
+      background: transparent;
+      color: var(--ink);
       margin: -11px 0 -5px;
       cursor: pointer;
       height: 28px;
@@ -192,89 +225,85 @@
       display: flex;
       justify-content: space-between;
       font-size: 0.78rem;
-      color: #6b8090;
+      color: var(--muted);
       margin-bottom: 28px;
     }
     .fuel-value {
       text-align: center;
       font-size: 1rem;
-      font-weight: 700;
-      color: #42a4ff;
+      font-weight: 600;
+      color: var(--ink);
       margin-bottom: 8px;
     }
 
     /* ── Buttons ──────────────────────────────────────────────── */
+    /* As on fleetr.ai: terracotta buttons are tactile, a shade along the
+       bottom edge that flattens when pressed; outline buttons are ink. */
     .btn {
       width: 100%;
-      padding: 17px 20px;
-      border-radius: 11px;
-      border: none;
-      font-family: 'Inter', sans-serif;
-      font-size: 1.05rem;
-      font-weight: 400;
+      padding: 16px 20px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
       cursor: pointer;
-      letter-spacing: 0.04em;
-      transition: opacity 0.15s, transform 0.1s;
+      transition: background-color 0.15s, border-color 0.15s, color 0.15s, transform 0.12s, box-shadow 0.12s;
       margin-bottom: 12px;
     }
-    .btn:active { transform: scale(0.97); opacity: 0.8; }
-    .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
 
-    .btn-primary   { background: #42a4ff; color: #1F1E1D; }
-    .btn-secondary { background: transparent; color: #42a4ff; border: 1.5px solid #42a4ff; }
-    .btn-ghost     { background: transparent; color: #6b8090; }
-    .btn-danger    { background: #dc2626; color: #F9F9F7; border: none; }
+    .btn-primary   { background: var(--terra); color: var(--ink); box-shadow: var(--tactile); }
+    .btn-primary:active { background: var(--terra-dk); box-shadow: inset 0 -1px 0 rgba(31, 30, 29, 0.16); }
+    .btn-secondary { background: transparent; color: var(--ink); border-color: var(--ink); }
+    .btn-secondary:active { background: var(--surface); }
+    .btn-ghost     { background: transparent; color: var(--body); }
+    .btn-danger    { background: var(--ink); color: var(--paper); box-shadow: var(--tactile); }
+    @media (hover: hover) {
+      .btn-primary:hover:not(:disabled) { background: var(--terra-dk); }
+      .btn-secondary:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+      .btn-danger:hover:not(:disabled) { background: var(--body); }
+    }
     .btn-manual-toggle {
       background: none;
       border: none;
-      color: #6b8090;
-      font-family: 'Inter', sans-serif;
-      font-size: 0.88rem;
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 600;
       cursor: pointer;
       padding: 4px 8px;
       text-decoration: underline;
-      text-underline-offset: 3px;
-      transition: color 0.15s;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 4px;
+      transition: text-decoration-color 0.15s;
     }
-    .btn-manual-toggle:hover { color: #42a4ff; }
-
-    /* ── Screen 1 — light input style ────────────────────────── */
-    #s1 input[type="text"] {
-      background: #ffffff;
-      border: 1px solid #d0d8e0;
-      color: #1F1E1D;
-      font-family: 'Inter', sans-serif;
-    }
-    #s1 input[type="text"]:focus { border-color: #42a4ff; }
-    #s1 input[type="text"]::placeholder { color: #aab4bf; }
-    #s1 label { font-family: 'Inter', sans-serif; color: #42a4ff; }
-    #s1 .btn { font-weight: 400; }
+    .btn-manual-toggle:hover { text-decoration-color: var(--terra); text-decoration-thickness: 2px; }
 
 
     /* ── Info box ─────────────────────────────────────────────── */
     /* Shown on the done screens when a photo failed to upload. */
     .upload-warning {
-      background: #fff8e6;
-      border: 1px solid #f3d38a;
-      color: #7a5a10;
+      background: var(--surface);
+      border-left: 3px solid var(--ink);
+      color: var(--ink);
       border-radius: 10px;
       padding: 12px 14px;
-      font-size: 0.88rem;
+      font-size: 0.9rem;
       line-height: 1.5;
       margin: 0 0 16px;
-      font-family: 'Inter', sans-serif;
       text-align: left;
     }
     .info-box {
-      background: #ffffff;
-      border: 1px solid #d0d8e0;
-      border-radius: 10px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
       padding: 14px 16px;
-      font-size: 0.9rem;
-      color: #4a6070;
+      font-size: 0.92rem;
+      color: var(--body);
       line-height: 1.55;
       margin-bottom: 20px;
-      font-family: 'Inter', sans-serif;
     }
 
     /* ── Damage list ──────────────────────────────────────────── */
@@ -283,27 +312,29 @@
       margin-bottom: 8px;
     }
     .damage-list li {
-      background: #ffffff;
-      border: 1px solid #d0d8e0;
-      border-radius: 9px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
       padding: 13px 16px;
       margin-bottom: 8px;
       font-size: 0.95rem;
-      color: #1F1E1D;
-      font-family: 'Inter', sans-serif;
+      color: var(--ink);
       display: flex;
       align-items: flex-start;
-      gap: 10px;
+      gap: 12px;
     }
     .damage-list li::before {
-      content: '⚠';
-      color: #f59e0b;
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--ink);
       flex-shrink: 0;
-      margin-top: 1px;
+      margin-top: 7px;
     }
     .no-damage {
       text-align: center;
-      color: #22c55e;
+      color: var(--body);
       font-size: 1rem;
       padding: 18px 0 24px;
     }
@@ -314,7 +345,7 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: #000;
+      background: var(--ink);
       z-index: 3000;
       flex-direction: column;
       align-items: center;
@@ -332,16 +363,15 @@
       margin-bottom: 12px;
     }
     .live-cam__title {
-      color: #F9F9F7;
-      font-family: 'Inter', sans-serif;
+      color: var(--paper);
       font-size: 1rem;
-      font-weight: 700;
+      font-weight: 600;
     }
     .live-cam__close {
       background: none;
-      border: 1px solid rgba(255,255,255,0.3);
-      color: #F9F9F7;
-      font-family: 'Inter', sans-serif;
+      border: 1px solid rgba(249, 249, 247, 0.3);
+      color: var(--paper);
+      font-family: inherit;
       font-size: 0.88rem;
       border-radius: 999px;
       padding: 7px 16px;
@@ -353,8 +383,8 @@
       aspect-ratio: 4/3;
       border-radius: 14px;
       overflow: hidden;
-      border: 2px solid #42a4ff;
-      background: #000;
+      border: 1px solid rgba(249, 249, 247, 0.25);
+      background: var(--ink);
     }
     /* Letterboxed, not cropped, so the preview shows exactly what the photo
        will contain. */
@@ -375,14 +405,12 @@
       justify-content: center;
       text-align: center;
       padding: 20px;
-      color: #F9F9F7;
-      font-family: 'Inter', sans-serif;
+      color: var(--paper);
       font-size: 0.92rem;
       line-height: 1.45;
     }
     .live-cam__count {
-      color: #6b8090;
-      font-family: 'Inter', sans-serif;
+      color: var(--muted);
       font-size: 0.82rem;
       margin-top: 10px;
       min-height: 1.2em;
@@ -395,14 +423,18 @@
     }
     .live-cam__controls .btn { margin: 0; flex: 1; }
     .live-cam__controls .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    /* On the dark camera screen, outline buttons are drawn in paper. */
+    .live-cam .btn-secondary { color: var(--paper); border-color: var(--paper); }
+    .live-cam .btn-secondary:active { background: rgba(249, 249, 247, 0.1); }
+    @media (hover: hover) { .live-cam .btn-secondary:hover:not(:disabled) { background: var(--paper); color: var(--ink); } }
 
     /* ── Media previews ───────────────────────────────────────── */
     .odo-preview {
       width: 100%;
       max-height: 200px;
       object-fit: cover;
-      border-radius: 11px;
-      border: 1px solid #1a2e2e;
+      border-radius: 12px;
+      border: 1px solid var(--line);
       margin-bottom: 16px;
       display: none;
     }
@@ -417,26 +449,26 @@
     .photo-link {
       display: block;
       width: 100%;
-      padding: 12px 16px;
-      background: #0f2020;
-      border: 1px solid #1a2e2e;
-      border-radius: 10px;
-      color: #42a4ff;
-      font-family: 'Inter', sans-serif;
+      padding: 13px 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      color: var(--ink);
+      font-family: inherit;
       font-size: 0.92rem;
       font-weight: 500;
       text-align: left;
       cursor: pointer;
       text-decoration: none;
     }
-    .photo-link:active { background: #162b2b; }
+    .photo-link:active { background: var(--line); }
 
     /* ── Photo lightbox ───────────────────────────────────────── */
     .photo-lightbox {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.88);
+      background: rgba(31, 30, 29, 0.92);
       z-index: 999;
       align-items: center;
       justify-content: center;
@@ -447,7 +479,7 @@
       height: 80vh;
       max-width: 480px;
       object-fit: contain;
-      border-radius: 10px;
+      border-radius: 12px;
       display: block;
     }
     .photo-lightbox-close {
@@ -455,7 +487,7 @@
       top: 16px; right: 18px;
       background: none;
       border: none;
-      color: #fff;
+      color: var(--paper);
       font-size: 1.8rem;
       line-height: 1;
       cursor: pointer;
@@ -466,7 +498,7 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: #000;
+      background: var(--ink);
       z-index: 1000;
       flex-direction: column;
       align-items: center;
@@ -478,19 +510,19 @@
       top: 16px; right: 18px;
       background: none;
       border: none;
-      color: #F9F9F7;
+      color: var(--paper);
       font-size: 1.8rem;
       line-height: 1;
       cursor: pointer;
       z-index: 10;
     }
     .scan-modal-hint {
-      color: #6b8090;
-      font-size: 0.88rem;
+      color: rgba(249, 249, 247, 0.72);
+      font-size: 0.9rem;
       text-align: center;
       padding: 0 24px;
       margin-bottom: 16px;
-      letter-spacing: 0.03em;
+      line-height: 1.5;
     }
     .scan-video-wrap {
       position: relative;
@@ -498,8 +530,8 @@
       aspect-ratio: 4/3;
       border-radius: 14px;
       overflow: hidden;
-      border: 2px solid #42a4ff;
-      background: #000;
+      border: 1px solid rgba(249, 249, 247, 0.25);
+      background: var(--ink);
     }
     .scan-video-wrap video {
       width: 100%;
@@ -507,18 +539,20 @@
       object-fit: cover;
       display: block;
     }
+    /* The target the barcode goes in: the one terracotta mark on the camera. */
     .scan-crosshair {
       position: absolute;
       inset: 20%;
-      border: 2px solid rgba(66,164,255,0.6);
-      border-radius: 6px;
+      border: 2px solid var(--terra);
+      border-radius: 8px;
       pointer-events: none;
     }
     .scan-status {
       margin-top: 18px;
-      color: #6b8090;
-      font-size: 0.82rem;
-      letter-spacing: 0.06em;
+      color: rgba(249, 249, 247, 0.72);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
     }
 
@@ -527,22 +561,22 @@
       display: flex;
       gap: 5px;
       width: 100%;
-      margin-bottom: 18px;
+      margin-bottom: 20px;
     }
     .step-bar__seg {
       flex: 1;
-      height: 3px;
+      height: 4px;
       border-radius: 2px;
-      background: #d0d8e0;
+      background: var(--line);
     }
-    .step-bar__seg.active { background: #42a4ff; }
+    .step-bar__seg.active { background: var(--terra); }
 
     /* ── Skip link ────────────────────────────────────────────── */
     .skip-link {
       background: none;
       border: none;
-      color: #6b8090;
-      font-family: 'Inter', sans-serif;
+      color: var(--body);
+      font-family: inherit;
       font-size: 0.9rem;
       cursor: pointer;
       padding: 8px 0;
@@ -556,9 +590,10 @@
 
     /* ── Signature ────────────────────────────────────────────── */
     .sig-wrap {
-      background: #ffffff;
-      border: 1px solid #d0d8e0;
-      border-radius: 12px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
       overflow: hidden;
       margin-bottom: 10px;
       position: relative;
@@ -576,22 +611,28 @@
       align-items: center;
       justify-content: center;
       pointer-events: none;
-      color: #aab4bf;
-      font-family: 'Inter', sans-serif;
-      font-size: 0.88rem;
-      letter-spacing: 0.03em;
+      color: var(--muted);
+      font-size: 0.9rem;
     }
 
     /* ── Done screen ──────────────────────────────────────────── */
     .done-icon {
       text-align: center;
-      margin-bottom: 12px;
+      margin-bottom: 18px;
       line-height: 1;
     }
+    /* The booked tick from fleetr.ai: the circle pops in, the check draws. */
+    .done-tick { display: inline-block; width: 64px; height: 64px; }
+    .done-tick circle { fill: var(--terra); transform-box: fill-box; transform-origin: center; animation: tick-pop .45s cubic-bezier(.22, 1, .36, 1) both; }
+    .done-tick path { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 36; stroke-dashoffset: 36; animation: tick-draw .4s .3s ease-out forwards; }
+    @keyframes tick-pop { from { transform: scale(.4); opacity: 0; } }
+    @keyframes tick-draw { to { stroke-dashoffset: 0; } }
+    .screen:not(.active) .done-tick * { animation: none; }
     .done-summary {
-      background: #0a1818;
-      border: 1px solid #1a2e2e;
-      border-radius: 14px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
       padding: 6px 20px;
       margin-bottom: 28px;
     }
@@ -599,23 +640,23 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 16px;
       padding: 13px 0;
-      border-bottom: 1px solid #111e1e;
+      border-bottom: 1px solid var(--line);
       font-size: 0.95rem;
     }
     .done-row:last-child { border-bottom: none; }
-    .done-row .dr-label { color: #6b8090; }
-    .done-row .dr-value { font-weight: 700; color: #F9F9F7; }
+    .done-row .dr-label { color: var(--muted); }
+    .done-row .dr-value { font-weight: 600; color: var(--ink); text-align: right; }
 
     /* ── Protection ───────────────────────────────────────────── */
     .protection-card {
-      background: #ffffff;
-      border: 1px solid #d0d8e0;
-      border-radius: 10px;
-      padding: 14px 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px 18px;
       margin-bottom: 12px;
-      font-family: 'Inter', sans-serif;
-      color: #1F1E1D;
+      color: var(--ink);
     }
     .protection-card__head {
       display: flex;
@@ -624,11 +665,11 @@
       gap: 12px;
       margin-bottom: 6px;
     }
-    .protection-card__name { font-weight: 700; font-size: 1rem; }
-    .protection-card__price { font-size: 0.9rem; color: #4a6070; white-space: nowrap; }
+    .protection-card__name { font-weight: 600; font-size: 1rem; }
+    .protection-card__price { font-size: 0.9rem; color: var(--body); white-space: nowrap; }
     .protection-card__wording {
       font-size: 0.9rem;
-      color: #4a6070;
+      color: var(--body);
       line-height: 1.55;
       margin: 0 0 12px;
       white-space: pre-line;
@@ -636,10 +677,14 @@
     .protection-card__choices { display: flex; gap: 10px; }
     .protection-card__choices .btn { margin: 0; flex: 1; padding: 12px 14px; font-size: 0.95rem; }
     .protection-card__included {
+      display: inline-block;
       font-size: 0.78rem;
-      color: #42a4ff;
-      letter-spacing: 0.07em;
-      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--ink);
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 10px;
     }
     .protection-card__ack {
       display: flex;
@@ -647,28 +692,40 @@
       gap: 10px;
       margin: 12px 0 0;
       font-size: 0.9rem;
-      color: #1F1E1D;
+      font-weight: 400;
+      color: var(--ink);
       letter-spacing: normal;
       text-transform: none;
       line-height: 1.5;
       cursor: pointer;
     }
-    .protection-card__ack input { margin-top: 3px; width: 18px; height: 18px; flex: none; }
+    .protection-card__ack input { margin-top: 3px; width: 18px; height: 18px; flex: none; accent-color: var(--ink); }
 
     /* ── Error & loading ──────────────────────────────────────── */
     .error-msg {
-      color: #f87171;
+      color: var(--ink);
       font-size: 0.88rem;
+      font-weight: 600;
       text-align: center;
       min-height: 22px;
       margin-bottom: 8px;
+    }
+    .error-msg:not(:empty)::before {
+      content: '';
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--ink);
+      margin-right: 8px;
+      vertical-align: 1px;
     }
     .spinner {
       display: inline-block;
       width: 16px;
       height: 16px;
-      border: 2px solid rgba(6,13,12,0.3);
-      border-top-color: #1F1E1D;
+      border: 2px solid rgba(31, 30, 29, 0.25);
+      border-top-color: var(--ink);
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
       vertical-align: middle;
@@ -682,9 +739,10 @@
     .return-back-btn {
       background: none;
       border: none;
-      color: #42a4ff;
-      font-family: 'Inter', sans-serif;
-      font-size: 0.88rem;
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 0.92rem;
+      font-weight: 600;
       cursor: pointer;
       padding: 0 0 18px;
       text-align: left;
@@ -694,11 +752,11 @@
 
     .return-media-preview {
       width: 100%;
-      border-radius: 11px;
-      border: 1px solid #1a2e2e;
+      border-radius: 12px;
+      border: 1px solid var(--line);
       display: none;
       margin-bottom: 16px;
-      background: #000;
+      background: var(--surface);
     }
 
     .damage-choice {
@@ -708,20 +766,14 @@
       margin-bottom: 28px;
     }
     textarea.return-textarea {
-      width: 100%;
-      background: #0a1818;
-      border: 1px solid #1a2e2e;
-      border-radius: 11px;
-      color: #F9F9F7;
-      font-family: 'Inter', sans-serif;
       font-size: 1rem;
-      padding: 15px 16px;
-      margin-bottom: 22px;
-      outline: none;
       resize: none;
-      transition: border-color 0.2s;
     }
-    textarea.return-textarea:focus { border-color: #42a4ff; }
+
+    /* Status words on the done screens. */
+    .status-word { font-weight: 700; }
+
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation-duration: .01ms !important; } }
 
   </style>
 </head>
@@ -734,12 +786,12 @@
   <div class="app">
 
     <!-- ═══════════════════════════════════════════════════════════
-         Screen 1 — Enter Plate
+         Screen 1: Enter Plate
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen active" id="s1">
-      <div style="font-family:'Inter',sans-serif;color:#42a4ff;font-size:3.5rem;font-weight:900;text-align:center;margin-bottom:8px;letter-spacing:-0.03em;">fleetr</div>
-      <h1>Welcome to Fleetr</h1>
-      <p class="subtitle">Enter your reservation details to begin your vehicle inspection.</p>
+      <div class="wordmark">fleetr</div>
+      <!-- Filled in and shown only when the page opens from a texted app link. -->
+      <p class="subtitle" hidden></p>
 
       <label for="resCodeInput">Reservation Code</label>
       <input type="text" id="resCodeInput" placeholder="ABC 123 456"
@@ -918,7 +970,7 @@
 
 
     <!-- ═══════════════════════════════════════════════════════════
-         Screen 2 — Pre-Existing Damage
+         Screen 2: Pre-Existing Damage
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s2">
       <button class="return-back-btn" id="s2Back">← Back</button>
@@ -927,8 +979,8 @@
       <h1>Pre-Existing Damage</h1>
 
       <div class="vehicle-card" id="vehicleCard">
-        <div class="v-plate">—</div>
-        <div class="v-detail">—</div>
+        <div class="v-plate"></div>
+        <div class="v-detail"></div>
       </div>
 
       <div class="info-box" id="s2InfoBox">
@@ -945,7 +997,7 @@
 
 
     <!-- ═══════════════════════════════════════════════════════════
-         Screen 4 — Photos of Concern
+         Screen 4: Photos of Concern
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s4">
       <button class="return-back-btn" id="s4Back">← Back</button>
@@ -985,7 +1037,7 @@
 
 
     <!-- ═══════════════════════════════════════════════════════════
-         Screen 6 — Digital Signature
+         Screen 6: Digital Signature
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s6">
       <button class="return-back-btn" id="s6Back">← Back</button>
@@ -1010,11 +1062,11 @@
 
 
     <!-- ═══════════════════════════════════════════════════════════
-         Screen 7 — Done
+         Screen 7: Done
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s7">
       <div class="spacer"></div>
-      <div class="done-icon" id="s7Icon"><svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="29" stroke="#42a4ff" stroke-width="2.5"/><path d="M20 32l9 9 15-16" stroke="#42a4ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="done-icon" id="s7Icon"><svg class="done-tick" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30"/><path d="M20 33l8.5 8.5L44 25"/></svg></div>
       <h1 id="s7Title">You're Good to Go!</h1>
       <p class="subtitle" id="s7Subtitle">Your inspection is complete and on file. Enjoy your rental.</p>
       <div class="done-summary" id="doneSummary"></div>
@@ -1024,7 +1076,7 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
-         Screen 8 — Return: Odometer Reading
+         Screen 8: Return: Odometer Reading
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s8">
       <button class="return-back-btn" id="s8Back">← Back</button>
@@ -1047,7 +1099,7 @@
 
 
     <!-- ═══════════════════════════════════════════════════════════
-         Screen 9 — Return: Fuel Level
+         Screen 9: Return: Fuel Level
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s9">
       <button class="return-back-btn" id="s9Back">← Back</button>
@@ -1073,7 +1125,7 @@
 
 
     <!-- ═══════════════════════════════════════════════════════════
-         Screen 9b — Return: Previous Damage on Record
+         Screen 9b: Return: Previous Damage on Record
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s9b">
       <button class="return-back-btn" id="s9bBack">← Back</button>
@@ -1086,12 +1138,12 @@
       <div class="no-damage" id="returnNoDamageMsg" style="display:none">✓ No previous damage was on record for this vehicle.</div>
 
       <div class="spacer"></div>
-      <button class="btn btn-primary" id="s9bNext">I Understand — Continue →</button>
+      <button class="btn btn-primary" id="s9bNext">I Understand, Continue →</button>
     </div>
 
 
     <!-- ═══════════════════════════════════════════════════════════
-         Screen 10 — Return: Damage Check
+         Screen 10: Return: Damage Check
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s10">
       <button class="return-back-btn" id="s10Back">← Back</button>
@@ -1106,7 +1158,7 @@
       </div>
 
       <div id="damageFields" style="display:none">
-        <label>Photos <span style="color:#6b8090;font-size:0.78rem;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <label>Photos <span style="color:var(--muted);font-weight:400">(optional)</span></label>
         <div class="photo-grid" id="returnPhotoGrid"></div>
         <button class="btn btn-secondary" id="addReturnPhotoBtn" style="margin-bottom:22px">📷 &nbsp;Add Photos</button>
 
@@ -1121,7 +1173,7 @@
 
 
     <!-- ═══════════════════════════════════════════════════════════
-         Screen 10b — Return: Vehicle Location
+         Screen 10b: Return: Vehicle Location
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s10b">
       <button class="return-back-btn" id="s10bBack">← Back</button>
@@ -1141,11 +1193,11 @@
 
 
     <!-- ═══════════════════════════════════════════════════════════
-         Screen 11 — Return: Confirmation
+         Screen 11: Return: Confirmation
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s11">
       <div class="spacer"></div>
-      <div class="done-icon"><svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="29" stroke="#42a4ff" stroke-width="2.5"/><path d="M20 32l9 9 15-16" stroke="#42a4ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="done-icon"><svg class="done-tick" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30"/><path d="M20 33l8.5 8.5L44 25"/></svg></div>
       <h1>Return Submitted</h1>
       <p class="subtitle">Your return has been submitted.<br/>Please leave your keys with a staff member.</p>
       <div class="upload-warning" id="s11PhotoWarning" role="status" hidden></div>
@@ -1170,7 +1222,7 @@
 
   </div><!-- /.app -->
 
-  <!-- Photo lightbox — rendered outside .app so it covers the full screen -->
+  <!-- Photo lightbox, rendered outside .app so it covers the full screen -->
   <div class="photo-lightbox" id="photoLightbox">
     <button class="photo-lightbox-close" id="photoLightboxClose">&#x2715;</button>
     <img id="photoLightboxImg" src="" alt="Photo" />
@@ -1225,7 +1277,7 @@
 
     // ── App state ─────────────────────────────────────────────────────────────
     let vehicle   = null;
-    let flowType  = 'pickup'; // 'pickup' or 'return' — detected from Supabase
+    let flowType  = 'pickup'; // 'pickup' or 'return', detected from Supabase
 
     // The company this customer's reservation belongs to, as lookup_reservation
     // returned it, plus the reservation's own fields. Set once the reservation
@@ -1326,7 +1378,7 @@
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 1 — Find Vehicle
+    // Screen 1: Find Vehicle
     // ════════════════════════════════════════════════════════════════════════
     const findBtn         = document.getElementById('findVehicleBtn');
     const s1Error         = document.getElementById('s1Error');
@@ -1878,9 +1930,9 @@
         proof,
       };
 
-      // If an RA exists but is NOT open_rental_agreement, block — can't pick up or return
+      // If an RA exists but is NOT open_rental_agreement, block: can't pick up or return
       if (raStatus && raStatus !== 'open_rental_agreement') {
-        console.log('Blocked — RA status is:', raStatus);
+        console.log('Blocked, RA status is:', raStatus);
         // customer_return means this person already returned it here, most
         // likely a back button or a reopened tab. Saying it has been
         // "processed" reads as though staff have dealt with it, which they
@@ -1918,27 +1970,27 @@
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Flow configuration — called after flowType is set
+    // Flow configuration, called after flowType is set
     // ════════════════════════════════════════════════════════════════════════
     function configureFlow() {
       const isReturn = flowType === 'return';
 
-      // Screen 2 — info box text
+      // Screen 2: info box text
       document.getElementById('s2InfoBox').innerHTML = isReturn
         ? 'This is the condition your vehicle was in at pickup.'
         : 'The following damage has been documented on this vehicle.<br />You are not responsible for it.';
 
-      // Screen 4 — subtitle
+      // Screen 4: subtitle
       document.getElementById('s4Subtitle').textContent = isReturn
         ? 'Flag any areas of concern.'
         : 'See any new damage that isn\'t listed? Photograph it now to protect yourself.';
 
-      // Screen 6 — signature subtitle
+      // Screen 6: signature subtitle
       document.getElementById('s6Subtitle').textContent = isReturn
         ? 'By signing below you confirm you are returning the vehicle in the condition shown.'
         : 'Review your rental agreement, then sign below to confirm it.';
 
-      // Screen 7 — done message
+      // Screen 7: done message
       document.getElementById('s7Title').textContent   = isReturn ? 'Thank you!' : 'You’re Good to Go!';
       document.getElementById('s7Subtitle').textContent = isReturn
         ? 'Thank you for returning your vehicle. A team member will complete your rental shortly.'
@@ -2000,14 +2052,14 @@
     });
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 2 — Pre-Existing Damage
+    // Screen 2: Pre-Existing Damage
     // ════════════════════════════════════════════════════════════════════════
     function buildDamageScreen() {
-      const v = vehicle || { plate: plateEl.value.trim().toUpperCase() || '—', make: '', model: '—', vehicleClass: '—', winterTires: 'No' };
+      const v = vehicle || { plate: plateEl.value.trim().toUpperCase(), make: '', model: '', vehicleClass: '', winterTires: 'No' };
 
       document.getElementById('vehicleCard').innerHTML = `
         <div class="v-plate">${v.plate}</div>
-        <div class="v-detail">${[v.year, v.make, v.model].filter(Boolean).join(' ')} &middot; ${v.vehicleClass}</div>
+        <div class="v-detail">${[[v.year, v.make, v.model].filter(Boolean).join(' '), v.vehicleClass].filter(Boolean).join(' &middot; ')}</div>
         ${v.winterTires === 'Yes'
           ? '<div class="v-winter">❄ Winter Tires Installed</div>'
           : ''}
@@ -2214,7 +2266,7 @@
     });
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 4 — Photos of Concern
+    // Screen 4: Photos of Concern
     // ════════════════════════════════════════════════════════════════════════
     const photoGrid  = document.getElementById('photoGrid');
 
@@ -2664,7 +2716,7 @@
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 6 — Signature
+    // Screen 6: Signature
     // ════════════════════════════════════════════════════════════════════════
     const canvas         = document.getElementById('sigCanvas');
     const ctx            = canvas.getContext('2d');
@@ -2892,7 +2944,7 @@
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 7 — Done
+    // Screen 7: Done
     // ════════════════════════════════════════════════════════════════════════
     function buildDoneScreen() {
       const v          = vehicle;
@@ -2914,8 +2966,8 @@
               .join(', ') || 'None accepted']
           : null,
         ['Status', flowType === 'return'
-          ? '<span style="color:#f59e0b;font-weight:700">Close Pending</span>'
-          : '<span style="color:#22c55e;font-weight:700">Inspection Complete</span>'],
+          ? '<span class="status-word">Close Pending</span>'
+          : '<span class="status-word">Inspection Complete</span>'],
       ].filter(Boolean);
 
       document.getElementById('doneSummary').innerHTML = rows.map(([label, value]) => `
@@ -2934,7 +2986,7 @@
     document.getElementById('s6Back').addEventListener('click', () => goTo(protectionShown() ? 'sProt' : 's4'));
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 8 — Return · Step 1 of 5 · Odometer
+    // Screen 8: Return · Step 1 of 5 · Odometer
     // ════════════════════════════════════════════════════════════════════════
     document.getElementById('s8Back').addEventListener('click', () => goTo('s1'));
 
@@ -2964,7 +3016,7 @@
     });
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 9 — Return · Step 2 of 5 · Fuel Level
+    // Screen 9: Return · Step 2 of 5 · Fuel Level
     // ════════════════════════════════════════════════════════════════════════
     document.getElementById('s9Back').addEventListener('click', () => goTo('s8'));
 
@@ -2998,7 +3050,7 @@
     });
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 9b — Return · Step 3 of 5 · Previous Damage on Record
+    // Screen 9b: Return · Step 3 of 5 · Previous Damage on Record
     // ════════════════════════════════════════════════════════════════════════
     function buildReturnPrevDamageScreen() {
       const damage      = Array.isArray(vehicle?.damage) ? vehicle.damage : [];
@@ -3025,7 +3077,7 @@
     });
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 10 — Return · Step 4 of 5 · Damage Check
+    // Screen 10: Return · Step 4 of 5 · Damage Check
     // ════════════════════════════════════════════════════════════════════════
     document.getElementById('s10Back').addEventListener('click', () => goTo('s9b'));
 
@@ -3078,7 +3130,7 @@
     });
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 10b — Return · Step 5 of 6 · Vehicle Location
+    // Screen 10b: Return · Step 5 of 6 · Vehicle Location
     // ════════════════════════════════════════════════════════════════════════
     document.getElementById('s10bBack').addEventListener('click', () => goTo('s10'));
 
@@ -3089,7 +3141,7 @@
     });
 
     // ════════════════════════════════════════════════════════════════════════
-    // submitReturn — write return data to Supabase then go to s11
+    // submitReturn: write return data to Supabase then go to s11
     // ════════════════════════════════════════════════════════════════════════
     // Through complete_return. The database re-checks the code and name, finds
     // this reservation's open agreement in its own company, moves it to
@@ -3159,7 +3211,7 @@
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 7 — Pickup: Done button
+    // Screen 7: Pickup: Done button
     // ════════════════════════════════════════════════════════════════════════
     document.getElementById('s7DoneBtn').addEventListener('click', () => {
       document.getElementById('resCodeInput').value  = '';
@@ -3183,7 +3235,7 @@
     });
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 11 — Return: Done button
+    // Screen 11: Return: Done button
     // ════════════════════════════════════════════════════════════════════════
     document.getElementById('s11DoneBtn').addEventListener('click', () => {
       // Reset lookup form so the next customer starts fresh
@@ -3373,7 +3425,7 @@
       document.querySelector('label[for="resCodeInput"]').style.display = 'none';
       document.getElementById('resCodeInput').style.display = 'none';
       const sub = document.querySelector('#s1 .subtitle');
-      if (sub) sub.textContent = `Reservation ${res.resCode}. Scan your license and enter the license plate to begin your vehicle inspection.`;
+      if (sub) { sub.textContent = `Reservation ${res.resCode}. Scan your license and enter the license plate to begin your vehicle inspection.`; sub.hidden = false; }
     }
 
     if (appToken !== null && cancelToken === null) openAppLink(appToken);
