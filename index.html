@@ -190,6 +190,9 @@
     select:focus,
     textarea:focus { border-color: var(--terra); box-shadow: 0 0 0 1px var(--terra); }
     input::placeholder, textarea::placeholder { color: var(--muted); }
+    /* Filled in from a texted link: shown, not editable. */
+    input[readonly] { color: var(--body); cursor: default; }
+    input[readonly]:focus { border-color: var(--line); box-shadow: none; }
     select option { background: var(--paper); color: var(--ink); }
 
     /* Custom select arrow */
@@ -790,8 +793,6 @@
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen active" id="s1">
       <div class="wordmark">fleetr</div>
-      <!-- Filled in and shown only when the page opens from a texted app link. -->
-      <p class="subtitle" hidden></p>
 
       <label for="resCodeInput">Reservation Code</label>
       <input type="text" id="resCodeInput" placeholder="ABC 123 456"
@@ -3214,7 +3215,8 @@
     // Screen 7: Pickup: Done button
     // ════════════════════════════════════════════════════════════════════════
     document.getElementById('s7DoneBtn').addEventListener('click', () => {
-      document.getElementById('resCodeInput').value  = '';
+      // A texted link's code stays: the link still stands in for it.
+      if (!resCodeEl.readOnly) resCodeEl.value = '';
       document.getElementById('licenseInput').value  = '';
       document.getElementById('plateInput').value    = '';
       document.getElementById('s1Error').textContent = '';
@@ -3239,7 +3241,8 @@
     // ════════════════════════════════════════════════════════════════════════
     document.getElementById('s11DoneBtn').addEventListener('click', () => {
       // Reset lookup form so the next customer starts fresh
-      document.getElementById('resCodeInput').value  = '';
+      // A texted link's code stays: the link still stands in for it.
+      if (!resCodeEl.readOnly) resCodeEl.value = '';
       document.getElementById('licenseInput').value  = '';
       document.getElementById('plateInput').value    = '';
       document.getElementById('s1Error').textContent = '';
@@ -3422,10 +3425,11 @@
       }
       if (!res) { invalid(); return; }
       appLinkToken = token;
-      document.querySelector('label[for="resCodeInput"]').style.display = 'none';
-      document.getElementById('resCodeInput').style.display = 'none';
-      const sub = document.querySelector('#s1 .subtitle');
-      if (sub) { sub.textContent = `Reservation ${res.resCode}. Scan your license and enter the license plate to begin your vehicle inspection.`; sub.hidden = false; }
+      // The token does the looking up, so the box only shows the customer
+      // which reservation the link found: filled in, as ABC 123 456, and locked.
+      const raw = String(res.resCode || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      resCodeEl.value = [raw.slice(0, 3), raw.slice(3, 6), raw.slice(6)].filter(Boolean).join(' ');
+      resCodeEl.readOnly = true;
     }
 
     if (appToken !== null && cancelToken === null) openAppLink(appToken);
