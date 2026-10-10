@@ -934,7 +934,7 @@
           <span class="protection-card__name">Add another driver?</span>
           <span class="protection-card__price" id="driver2Price"></span>
         </div>
-        <div class="protection-card__choices">
+        <div class="protection-card__choices" id="driver2Choices">
           <button type="button" class="btn btn-secondary" id="driver2YesBtn" aria-pressed="false">Yes</button>
           <button type="button" class="btn btn-secondary" id="driver2NoBtn" aria-pressed="false">No</button>
         </div>
@@ -2004,7 +2004,9 @@
     // "Add another driver?" Yes opens a licence form for them, scanned or
     // typed like the main driver's. Their daily charge is the company's price
     // for this reservation's vehicle class and source, shown here and worked
-    // out again by the database.
+    // out again by the database. A company that has set no price for it does
+    // not offer another driver at all: the question is not asked, and the
+    // database refuses one.
     let driver2Choice = null;   // null until answered, then true or false
 
     // The terms lookup_reservation returned with the reservation.
@@ -2016,8 +2018,12 @@
       Object.values(DRIVER_INPUTS.d2).forEach(id => { document.getElementById(id).value = ''; });
       document.getElementById('sDriverError').textContent = '';
       const price = contractTerms().otherDriverPrice;
-      document.getElementById('driver2Price').textContent =
-        price != null && Number(price) > 0 ? `${money(price)} per day` : 'No charge';
+      const offered = price != null;
+      document.getElementById('driver2Choices').style.display = offered ? '' : 'none';
+      document.getElementById('driver2Price').textContent = !offered
+        ? 'Not available on this rental. Please see a member of staff if someone else needs to drive.'
+        : Number(price) > 0 ? `${money(price)} per day` : 'No charge';
+      if (!offered) driver2Choice = false;
       renderDriver2Choice();
     }
 
@@ -2512,7 +2518,9 @@
               updateProtectionNext();
             });
             ack.appendChild(box);
-            ack.appendChild(el('span', null, p.declineWording || 'I decline this coverage.'));
+            // Only a product with its own decline wording is offered as
+            // optional, so the company's words are always there to show.
+            ack.appendChild(el('span', null, p.declineWording));
             card.appendChild(ack);
           }
         }
@@ -2629,7 +2637,7 @@
         name: p.name, price: Number(p.pricePerDay) || 0,
         accepted: p.required || protectionAnswers[String(p.productId)]?.accepted === true,
       }));
-      const otherPrice = Number(terms.otherDriverPrice) || 0;
+      const otherPrice = Number(terms.otherDriverPrice);
 
       const rental = rate * days;
       const additional = [
@@ -2867,6 +2875,7 @@
       protection_required:         'One of the coverage options is included with your rental and cannot be declined. Please review your choices.',
       protection_ack_required:     'Please tick the box for each coverage you decline.',
       drivers_invalid:             'Some driver details are missing or not valid. Please go back and check the license details.',
+      no_other_driver_price:       'Another driver cannot be added to this rental. Please go back and remove them, or see a member of staff.',
       acknowledgements_invalid:    'The rental terms could not be confirmed. Please start again or see a member of staff.',
     };
     // Refusals that mean the offer on screen is not the offer any more, or the
