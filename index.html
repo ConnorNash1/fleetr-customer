@@ -932,7 +932,6 @@
       <div class="protection-card">
         <div class="protection-card__head">
           <span class="protection-card__name">Add another driver?</span>
-          <span class="protection-card__price" id="driver2Price"></span>
         </div>
         <div class="protection-card__choices" id="driver2Choices">
           <button type="button" class="btn btn-secondary" id="driver2YesBtn" aria-pressed="false">Yes</button>
@@ -2002,11 +2001,8 @@
     // Screen 1b: Drivers
     // ════════════════════════════════════════════════════════════════════════
     // "Add another driver?" Yes opens a licence form for them, scanned or
-    // typed like the main driver's. Their daily charge is the company's price
-    // for this reservation's vehicle class and source, shown here and worked
-    // out again by the database. A company that has set no price for it does
-    // not offer another driver at all: the question is not asked, and the
-    // database refuses one.
+    // typed like the main driver's. Another driver is always allowed and never
+    // charged for.
     let driver2Choice = null;   // null until answered, then true or false
 
     // The terms lookup_reservation returned with the reservation.
@@ -2017,13 +2013,6 @@
       driver2Choice = null;
       Object.values(DRIVER_INPUTS.d2).forEach(id => { document.getElementById(id).value = ''; });
       document.getElementById('sDriverError').textContent = '';
-      const price = contractTerms().otherDriverPrice;
-      const offered = price != null;
-      document.getElementById('driver2Choices').style.display = offered ? '' : 'none';
-      document.getElementById('driver2Price').textContent = !offered
-        ? 'Not available on this rental. Please see a member of staff if someone else needs to drive.'
-        : Number(price) > 0 ? `${money(price)} per day` : 'No charge';
-      if (!offered) driver2Choice = false;
       renderDriver2Choice();
     }
 
@@ -2571,8 +2560,8 @@
     // acknowledgements, then the signature. Built with text nodes only, since
     // names, addresses and the acknowledgements come from customer records and
     // company staff. The charges are an estimate for the booked days; the
-    // database works out and records the other driver's charge and the
-    // deductibles itself, and the final bill is settled at return.
+    // database works out and records the deductibles itself, and the final
+    // bill is settled at return. Another driver is never charged for.
     // { vehicleId, vin, startOdometer, startFuelLevel } once read. The
     // starting readings are the vehicle's last recorded ones, from
     // lookup_vehicle_contract (fleetr-infra, pickup_readings.sql), shown
@@ -2637,12 +2626,10 @@
         name: p.name, price: Number(p.pricePerDay) || 0,
         accepted: p.required || protectionAnswers[String(p.productId)]?.accepted === true,
       }));
-      const otherPrice = Number(terms.otherDriverPrice);
 
       const rental = rate * days;
       const additional = [
         ...coverages.filter(c => c.accepted).map(c => [`${c.name} (${days} day${days === 1 ? '' : 's'} × ${money(c.price)})`, c.price * days]),
-        ...(driver2Choice ? [[`Other driver (${days} day${days === 1 ? '' : 's'} × ${money(otherPrice)})`, otherPrice * days]] : []),
       ];
       const additionalTotal = additional.reduce((s, [, n]) => s + n, 0);
       const subtotal = rental + additionalTotal;
@@ -2875,7 +2862,6 @@
       protection_required:         'One of the coverage options is included with your rental and cannot be declined. Please review your choices.',
       protection_ack_required:     'Please tick the box for each coverage you decline.',
       drivers_invalid:             'Some driver details are missing or not valid. Please go back and check the license details.',
-      no_other_driver_price:       'Another driver cannot be added to this rental. Please go back and remove them, or see a member of staff.',
       acknowledgements_invalid:    'The rental terms could not be confirmed. Please start again or see a member of staff.',
     };
     // Refusals that mean the offer on screen is not the offer any more, or the
@@ -2923,8 +2909,7 @@
         signature:   canvas.toDataURL('image/png'),
         photo_count: photos.length,
         // The drivers and the acknowledgements version this contract shows.
-        // The charge for the other driver and the deductibles are worked out
-        // by the database, not sent.
+        // The deductibles are worked out by the database, not sent.
         drivers:            [readDriver('main'), ...(driver2Choice ? [readDriver('d2')] : [])],
         acknowledgement_id: contractTerms().acknowledgements?.id || null,
       };
