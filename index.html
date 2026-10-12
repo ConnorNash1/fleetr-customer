@@ -150,12 +150,6 @@
       color: var(--body);
       margin-top: 4px;
     }
-    .vehicle-card .v-winter {
-      font-size: 0.88rem;
-      font-weight: 600;
-      color: var(--ink);
-      margin-top: 6px;
-    }
 
     /* ── Form elements ────────────────────────────────────────── */
     label {
@@ -1783,9 +1777,9 @@
           licence_number: dlVal || null, licence_expiry: expiryVal || null, licence_province: licProvince || null,
         });
         if (licErr || !licRes?.ok) {
-          console.warn('Licence save FAILED:', licErr || licRes);
+          console.warn('License save FAILED:', licErr || licRes);
         } else {
-          console.log('Licence saved to reservation:', licRes.saved);
+          console.log('License saved to reservation:', licRes.saved);
         }
       }
 
@@ -2051,14 +2045,11 @@
     // Screen 2: Pre-Existing Damage
     // ════════════════════════════════════════════════════════════════════════
     function buildDamageScreen() {
-      const v = vehicle || { plate: plateEl.value.trim().toUpperCase(), make: '', model: '', vehicleClass: '', winterTires: 'No' };
+      const v = vehicle || { plate: plateEl.value.trim().toUpperCase(), make: '', model: '', vehicleClass: '' };
 
       document.getElementById('vehicleCard').innerHTML = `
         <div class="v-plate">${v.plate}</div>
         <div class="v-detail">${[[v.year, v.make, v.model].filter(Boolean).join(' '), v.vehicleClass].filter(Boolean).join(' &middot; ')}</div>
-        ${v.winterTires === 'Yes'
-          ? '<div class="v-winter">❄ Winter Tires Installed</div>'
-          : ''}
       `;
 
       const damageList  = document.getElementById('damageList');
