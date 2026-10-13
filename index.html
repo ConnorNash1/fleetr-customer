@@ -162,6 +162,7 @@
     input[type="text"],
     input[type="number"],
     input[type="password"],
+    input[type="date"],
     select,
     textarea {
       width: 100%;
@@ -181,6 +182,7 @@
     input[type="text"]:focus,
     input[type="number"]:focus,
     input[type="password"]:focus,
+    input[type="date"]:focus,
     select:focus,
     textarea:focus { border-color: var(--terra); box-shadow: 0 0 0 1px var(--terra); }
     input::placeholder, textarea::placeholder { color: var(--muted); }
@@ -907,6 +909,7 @@
       </div>
 
       <button class="btn btn-primary" id="findVehicleBtn">Start Rental Process</button>
+      <button class="btn btn-secondary" id="changePickupBtn" type="button">Change pickup time</button>
 
       <div class="error-msg" id="s1Error"></div>
       <div class="spacer"></div>
@@ -1214,6 +1217,40 @@
       <button class="btn btn-secondary" id="cancelRetryBtn" type="button" hidden>Try again</button>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════════
+         Change the pickup time, from the button above or the link in a
+         no-show text (#r=token)
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="sResched">
+      <button class="return-back-btn" id="reschedBack" type="button">← Back</button>
+      <h1 id="reschedTitle">Change pickup time</h1>
+      <p class="subtitle" id="reschedSubtitle">Finding your reservation.</p>
+      <div id="reschedFind" hidden>
+        <label for="reschedCode">Reservation Code</label>
+        <input type="text" id="reschedCode" placeholder="ABC 123 456"
+               autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+        <label for="reschedLast">Last Name</label>
+        <input type="text" id="reschedLast" autocomplete="family-name" />
+        <button class="btn btn-primary" id="reschedFindBtn" type="button">Find my reservation</button>
+      </div>
+      <div class="done-summary" id="reschedSummary" hidden></div>
+      <div id="reschedForm" hidden>
+        <label for="reschedPickupDate">New pickup date</label>
+        <input type="date" id="reschedPickupDate" />
+        <label for="reschedPickupTime">New pickup time</label>
+        <div class="select-wrap"><select id="reschedPickupTime"></select></div>
+        <label for="reschedReturnDate">Return date</label>
+        <input type="date" id="reschedReturnDate" />
+        <label for="reschedReturnTime">Return time</label>
+        <div class="select-wrap"><select id="reschedReturnTime"></select></div>
+        <p class="subtitle" id="reschedPrice" hidden></p>
+      </div>
+      <div class="error-msg" id="reschedError"></div>
+      <div id="reschedSuggestions" hidden></div>
+      <button class="btn btn-primary" id="reschedConfirmBtn" type="button" hidden>Confirm new time</button>
+      <button class="btn btn-secondary" id="reschedRetryBtn" type="button" hidden>Try again</button>
+    </div>
+
   </div><!-- /.app -->
 
   <!-- Photo lightbox, rendered outside .app so it covers the full screen -->
@@ -1346,7 +1383,7 @@
     // ── Screen routing ────────────────────────────────────────────────────────
     const PICKUP_SCREENS = ['s1','sDriver','s2','s4','sProt','s6','s7'];
     const RETURN_SCREENS = ['s1','s8','s9','s9b','s10','s10b','s11'];
-    const ALL_SCREENS    = ['s1','sDriver','s2','s4','sProt','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel'];
+    const ALL_SCREENS    = ['s1','sDriver','s2','s4','sProt','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel','sResched'];
 
     // A field typed into on the screen being left keeps the focus, and the
     // iPhone keyboard with it, after its screen is hidden. iPhone Safari then
@@ -3419,10 +3456,269 @@
 
     if (appToken !== null && cancelToken === null) openAppLink(appToken);
 
-    // A cancel or app link opened in a tab that already has this page loaded
-    // only changes the fragment, which does not reload the page by itself.
+    // ════════════════════════════════════════════════════════════════════════
+    // Change the pickup time
+    // ════════════════════════════════════════════════════════════════════════
+    // From the button on the first screen, or the link the no-show texts end
+    // with: this page's address and "#r=<token>", the same token as the app
+    // link. With a token the reservation is found straight away; without one
+    // the customer gives the code and last name. Both go through two database
+    // functions (fleetr-infra, customer_reschedule.sql): reschedule_lookup
+    // reads the times and the price, and reschedule_by_link checks the new
+    // times with fleetr.ai's booking rules and availability, and saves them.
+    // Then the worker texts the new times.
+    const reschedToken = (() => {
+      if (!location.hash.startsWith('#r=')) return null;
+      const t = location.hash.slice(3);
+      return /^[A-Za-z0-9_-]{16,64}$/.test(t) ? t : '';
+    })();
+    const RESCHEDULE_TEXT_URL = 'https://fleetr-ai-proxy.connor-0a5.workers.dev/reservation-rescheduled';
+    {
+      const el = (id) => document.getElementById(id);
+      const titleEl = el('reschedTitle'), subEl = el('reschedSubtitle'), sumEl = el('reschedSummary');
+      const findEl = el('reschedFind'), formEl = el('reschedForm'), errEl = el('reschedError');
+      const priceEl = el('reschedPrice'), sugEl = el('reschedSuggestions');
+      const pDate = el('reschedPickupDate'), pTime = el('reschedPickupTime');
+      const rDate = el('reschedReturnDate'), rTime = el('reschedReturnTime');
+      const confirmBtn = el('reschedConfirmBtn'), retryBtn = el('reschedRetryBtn');
+
+      // Every quarter hour of the day, shown as 10:00 AM, kept as 10:00.
+      const quarterOptions = () => Array.from({ length: 96 }, (_, i) => {
+        const h = Math.floor(i / 4), m = (i % 4) * 15;
+        const o = document.createElement('option');
+        o.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        o.textContent = `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+        return o;
+      });
+      pTime.replaceChildren(...quarterOptions());
+      rTime.replaceChildren(...quarterOptions());
+
+      // "2026-10-22T11:00" is the branch's own local time. Read and written as
+      // UTC here only so the browser's time zone never moves it.
+      const asMs = (d, t) => Date.parse(`${d}T${t}:00Z`);
+      const fromMs = (ms) => { const x = new Date(ms).toISOString(); return [x.slice(0, 10), x.slice(11, 16)]; };
+      const fmtWhen = (local) => {
+        const ms = Date.parse(`${local}:00Z`);
+        if (!Number.isFinite(ms)) return '';
+        const d = new Date(ms);
+        const day = d.toLocaleDateString('en-CA', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' });
+        const h = d.getUTCHours(), m = d.getUTCMinutes();
+        return `${day} at ${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+      };
+      const money = (n) => `$${Number(n).toFixed(2)}`;
+      const daysBetween = (a, b) => Math.max(1, Math.ceil((b - a) / 86400000));
+
+      let proof = null;        // { code, last }: what both calls are given
+      let current = null;      // what reschedule_lookup returned
+      let returnTouched = false;
+      let busy = false;
+
+      const company = () => (current && current.company) || 'the rental company';
+      const REASONS = {
+        not_found:            () => 'We could not find that reservation. Check the code and last name, or open the link from your text again.',
+        picked_up:            () => 'This rental has already been picked up, so its times cannot be changed here.',
+        not_changeable:       () => `This reservation's times cannot be changed online. Please contact ${company()}.`,
+        not_bookable:         () => `This reservation's times cannot be changed online. Please contact ${company()}.`,
+        too_late:             () => `This reservation can no longer be changed online. Please contact ${company()} to rebook.`,
+        limit:                () => `This reservation has been changed 3 times, the most allowed online. Please contact ${company()} to change it again.`,
+        bad_time:             () => 'Pick a time on the quarter hour.',
+        unchanged:            () => 'Those are the times you already have.',
+        bad_dates:            () => 'The return has to be after the pickup.',
+        too_soon:             () => 'That pickup is too soon. Pick a later time.',
+        too_long:             () => 'That rental is longer than this branch allows. Pick an earlier return.',
+        pickup_outside_hours: () => 'The branch is closed at that pickup time.',
+        return_outside_hours: () => 'The branch is closed at that return time.',
+        not_available:        () => 'No vehicle of this class is free for those times.',
+      };
+      const STOPS = ['not_found', 'picked_up', 'not_changeable', 'not_bookable', 'too_late', 'limit'];
+
+      const summaryRows = (rows) => {
+        // Built as elements, not markup: these are words from the database.
+        sumEl.replaceChildren(...rows.filter(([, v]) => v).map(([label, value]) => {
+          const row = document.createElement('div'); row.className = 'done-row';
+          const l = document.createElement('span');  l.className = 'dr-label'; l.textContent = label;
+          const v = document.createElement('span');  v.className = 'dr-value'; v.textContent = value;
+          row.append(l, v);
+          return row;
+        }));
+        sumEl.hidden = false;
+      };
+      const view = ({ title, subtitle, find = false, form = false, retry = false }) => {
+        titleEl.textContent = title;
+        subEl.textContent = subtitle;
+        findEl.hidden = !find;
+        formEl.hidden = !form;
+        confirmBtn.hidden = !form;
+        retryBtn.hidden = !retry;
+        if (!form) { sumEl.hidden = true; sugEl.hidden = true; }
+        errEl.textContent = '';
+      };
+
+      // The price at the booked daily rate, before and after, as the customer
+      // picks. Nothing when the reservation has no rate on file.
+      const showPrice = () => {
+        const p = current && current.price;
+        const a = asMs(pDate.value, pTime.value), b = asMs(rDate.value, rTime.value);
+        if (!p || p.perDay == null || !Number.isFinite(a) || !Number.isFinite(b) || b <= a) { priceEl.hidden = true; return; }
+        const days = daysBetween(a, b);
+        const total = Math.round(p.perDay * days * 100) / 100;
+        priceEl.textContent = `${days} day${days === 1 ? '' : 's'}, ${money(total)} estimated before tax`
+          + (p.total != null ? ` (was ${p.days} day${p.days === 1 ? '' : 's'}, ${money(p.total)}).` : '.');
+        priceEl.hidden = false;
+      };
+      const setFields = (pickup, ret) => {
+        [pDate.value, pTime.value] = pickup.split('T');
+        [rDate.value, rTime.value] = ret.split('T');
+        showPrice();
+      };
+
+      const showReservation = (r) => {
+        current = r;
+        returnTouched = false;
+        view({ title: 'Change pickup time',
+          subtitle: `${r.firstName ? `Hi ${r.firstName}, pick` : 'Pick'} a new pickup time, and a new return if you need one. `
+            + `You can change this reservation ${r.changesLeft} more time${r.changesLeft === 1 ? '' : 's'} online.`,
+          form: true });
+        summaryRows([
+          ['Company',        r.company],
+          ['Location',       r.location],
+          ['Current pickup', fmtWhen(r.pickup)],
+          ['Current return', fmtWhen(r.return)],
+        ]);
+        setFields(r.pickup, r.return || r.pickup);
+      };
+
+      const lookup = async () => {
+        view({ title: 'One moment', subtitle: 'Finding your reservation.' });
+        let data = null;
+        try {
+          const out = await supabase.rpc('reschedule_lookup', { p_code: proof.code, p_last_name: proof.last });
+          if (out.error) throw out.error;
+          data = out.data;
+        } catch (e) {
+          console.warn('reschedule_lookup failed:', e);
+          view({ title: 'Unable to connect', subtitle: 'Check your connection and try again.', retry: true });
+          return;
+        }
+        if (data && data.ok) { showReservation(data); return; }
+        current = data;
+        if (data && data.reason === 'not_found' && !proof.last) {
+          view({ title: 'This link is not valid', subtitle: 'Enter your reservation code and last name instead.', find: true });
+          return;
+        }
+        view({ title: 'Change pickup time', subtitle: (REASONS[data && data.reason] || REASONS.not_changeable)(),
+          find: data && data.reason === 'not_found' });
+      };
+
+      // The return moves with the pickup, keeping the rental's length, until
+      // the customer picks a return of their own.
+      const pickupChanged = () => {
+        if (!returnTouched && current && current.pickup && current.return) {
+          const len = Date.parse(`${current.return}:00Z`) - Date.parse(`${current.pickup}:00Z`);
+          const a = asMs(pDate.value, pTime.value);
+          if (Number.isFinite(a) && len > 0) [rDate.value, rTime.value] = fromMs(a + len);
+        }
+        sugEl.hidden = true;
+        errEl.textContent = '';
+        showPrice();
+      };
+      const returnChanged = () => { returnTouched = true; sugEl.hidden = true; errEl.textContent = ''; showPrice(); };
+      pDate.addEventListener('change', pickupChanged);
+      pTime.addEventListener('change', pickupChanged);
+      rDate.addEventListener('change', returnChanged);
+      rTime.addEventListener('change', returnChanged);
+
+      const showSuggestions = (list) => {
+        if (!list || !list.length) { sugEl.hidden = true; return; }
+        const head = document.createElement('p'); head.className = 'subtitle'; head.textContent = 'The nearest times that fit:';
+        sugEl.replaceChildren(head, ...list.map((sg) => {
+          const b = document.createElement('button');
+          b.type = 'button'; b.className = 'btn btn-secondary';
+          b.textContent = `Pickup ${fmtWhen(sg.pickup)}`;
+          b.addEventListener('click', () => { returnTouched = true; setFields(sg.pickup, sg.return); sugEl.hidden = true; errEl.textContent = ''; });
+          return b;
+        }));
+        sugEl.hidden = false;
+      };
+
+      confirmBtn.addEventListener('click', async () => {
+        if (busy) return;
+        if (!pDate.value || !rDate.value) { errEl.textContent = 'Pick a pickup date and a return date.'; return; }
+        busy = true; confirmBtn.disabled = true; confirmBtn.textContent = 'Saving…';
+        let data = null;
+        try {
+          const out = await supabase.rpc('reschedule_by_link', {
+            p_code: proof.code, p_last_name: proof.last,
+            p_pickup: `${pDate.value} ${pTime.value}`, p_return: `${rDate.value} ${rTime.value}`,
+          });
+          if (out.error) throw out.error;
+          data = out.data;
+        } catch (e) {
+          console.warn('reschedule_by_link failed:', e);
+          errEl.textContent = 'Unable to connect. Your reservation has not been changed. Please try again.';
+        }
+        busy = false; confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm new time';
+        if (!data) return;
+        if (!data.ok) {
+          if (STOPS.includes(data.reason)) {
+            view({ title: 'Change pickup time', subtitle: (REASONS[data.reason] || REASONS.not_changeable)() });
+            return;
+          }
+          errEl.textContent = (REASONS[data.reason] || (() => 'That time could not be saved. Pick another.'))();
+          showSuggestions(data.suggestions);
+          return;
+        }
+        // The text with the new times. Asked for once; the worker sends it
+        // once however often it is asked.
+        if (data.appToken) {
+          fetch(RESCHEDULE_TEXT_URL, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: data.appToken }),
+          }).catch((e) => console.warn('reschedule text request failed:', e));
+        }
+        const p = data.price;
+        view({ title: 'Pickup time changed',
+          subtitle: `Your reservation${current && current.company ? ` with ${current.company}` : ''} has been changed. We will text you the new times.` });
+        summaryRows([
+          ['New pickup', fmtWhen(data.pickup)],
+          ['New return', fmtWhen(data.return)],
+          ['Estimated price', p && p.total != null ? `${money(p.total)} before tax` : ''],
+        ]);
+      });
+
+      retryBtn.addEventListener('click', () => { if (proof) lookup(); });
+
+      el('reschedFindBtn').addEventListener('click', () => {
+        const code = el('reschedCode').value.trim(), last = el('reschedLast').value.trim();
+        if (!code || !last) { errEl.textContent = 'Enter your reservation code and last name.'; return; }
+        proof = { code, last };
+        lookup();
+      });
+
+      el('reschedBack').addEventListener('click', () => {
+        if (reschedToken) { history.replaceState(null, '', location.pathname + location.search); openAppLink(reschedToken); }
+        goTo('s1');
+      });
+
+      // The button on the first screen: with an app link the reservation is
+      // already known; otherwise the code and last name are asked for.
+      el('changePickupBtn').addEventListener('click', () => {
+        goTo('sResched');
+        if (appLinkToken) { proof = { code: appLinkToken, last: '' }; lookup(); return; }
+        el('reschedCode').value = resCodeEl.value;
+        view({ title: 'Change pickup time', subtitle: 'Enter your reservation code and last name to find your reservation.', find: true });
+      });
+
+      if (reschedToken !== null && cancelToken === null) {
+        goTo('sResched');
+        if (reschedToken) { proof = { code: reschedToken, last: '' }; lookup(); }
+        else view({ title: 'This link is not valid', subtitle: 'Enter your reservation code and last name instead.', find: true });
+      }
+    }
+
+    // A cancel, app or change link opened in a tab that already has this page
+    // loaded only changes the fragment, which does not reload the page by itself.
     window.addEventListener('hashchange', () => {
-      if (location.hash.startsWith('#c=') || location.hash.startsWith('#a=')) location.reload();
+      if (location.hash.startsWith('#c=') || location.hash.startsWith('#a=') || location.hash.startsWith('#r=')) location.reload();
     });
 
     // ── Initialise ────────────────────────────────────────────────────────────
