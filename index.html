@@ -17,17 +17,21 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap');
 
-    /* The fleetr.ai palette. Terracotta is the only accent and marks actions
-       and active states; everything else is one of the neutrals. */
+    /* The terracotta theme the staff app uses. Terracotta is the only accent
+       and marks actions and active states; cards and fields are white on the
+       warm paper, with lines and quiet text drawn from the ink. */
     :root {
-      --paper:    #F9F9F7;
-      --surface:  #F1F0EC;
-      --line:     #E3E2DE;
-      --muted:    #6B6A66;
-      --body:     #5C5B57;
-      --ink:      #1F1E1D;
-      --terra:    #F4845F;
-      --terra-dk: #E06D47;
+      --paper:      #F9F9F7;
+      --card:       #FFFFFF;
+      --surface:    #FFFFFF;
+      --line:       rgba(31, 30, 29, 0.12);
+      --muted:      rgba(31, 30, 29, 0.62);
+      --body:       rgba(31, 30, 29, 0.74);
+      --ink:        #1F1E1D;
+      --terra:      #F4845F;
+      --terra-dk:   #EE7550;
+      --terra-text: #C9603D;
+      --terra-soft: rgba(244, 132, 95, 0.14);
       --shadow:    0 1px 2px rgba(31, 30, 29, 0.06), 0 8px 24px rgba(31, 30, 29, 0.08);
       --tactile:   inset 0 -3px 0 rgba(31, 30, 29, 0.16), 0 1px 2px rgba(31, 30, 29, 0.12);
     }
@@ -772,6 +776,89 @@
     /* Status words on the done screens. */
     .status-word { font-weight: 700; }
 
+
+    /* ── Terracotta accents ───────────────────────────────────── */
+    ::selection { background: var(--terra-soft); }
+    .step-label { color: var(--terra-text); }
+    .vehicle-card, .info-box, .damage-list li, .photo-link, .protection-card {
+      background: var(--card);
+      box-shadow: 0 1px 2px rgba(31, 30, 29, 0.05);
+    }
+    .info-box { box-shadow: inset 3px 0 0 var(--terra), 0 1px 2px rgba(31, 30, 29, 0.05); }
+    .upload-warning { background: var(--card); border-left-color: var(--terra); box-shadow: 0 1px 2px rgba(31, 30, 29, 0.05); }
+    .damage-list li::before { background: var(--terra); }
+    .photo-link:active { background: var(--terra-soft); }
+    @media (hover: hover) { .photo-link:hover { border-color: var(--terra); } }
+    .return-back-btn, .btn-manual-toggle { color: var(--terra-text); }
+    .btn-secondary:active { background: var(--terra-soft); }
+    .spinner { border-top-color: var(--terra); }
+    .protection-card__included { background: var(--terra-soft); border-color: transparent; color: var(--ink); }
+    .protection-card__ack input { accent-color: var(--terra); }
+    .error-msg:not(:empty)::before { background: var(--terra); }
+
+    /* ── Step progress, segmented ─────────────────────────────── */
+    /* The step just reached fills from the left as its screen opens. */
+    .step-bar__seg { height: 6px; border-radius: 999px; }
+    .step-bar__seg.active:not(:has(+ .step-bar__seg.active)) {
+      background: var(--line) linear-gradient(var(--terra), var(--terra)) left / 0% 100% no-repeat;
+      animation: seg-fill .5s .1s cubic-bezier(.4, 0, .2, 1) forwards;
+    }
+    @keyframes seg-fill { to { background-size: 100% 100%; } }
+
+    /* ── Choices as radio cards ───────────────────────────────── */
+    /* Yes and No, Accept and Decline: each a card with a radio mark, the
+       chosen one in terracotta. */
+    .protection-card__choices .btn[aria-pressed] {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      background: var(--card); color: var(--ink);
+      border: 1.5px solid var(--line); box-shadow: none;
+    }
+    .protection-card__choices .btn[aria-pressed]::before {
+      content: ''; flex: none; width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid rgba(31, 30, 29, 0.3); background: var(--card);
+      transition: border-color .15s, background .15s;
+    }
+    .protection-card__choices .btn[aria-pressed="true"] { border-color: var(--terra); background: var(--terra-soft); }
+    .protection-card__choices .btn[aria-pressed="true"]::before {
+      border-color: var(--terra);
+      background: radial-gradient(circle, var(--terra) 0 4px, var(--card) 4.5px);
+    }
+    @media (hover: hover) {
+      .protection-card__choices .btn[aria-pressed]:hover:not(:disabled) { border-color: var(--terra); background: var(--terra-soft); color: var(--ink); }
+    }
+
+    /* ── Summaries as a ticket ────────────────────────────────── */
+    /* A tinted stub with its title, torn off along a dashed line with a notch
+       cut from each side. It slides up once the tick has drawn. */
+    .done-summary[data-ticket] {
+      --notch: 46px;
+      background: var(--card);
+      box-shadow: none;
+      padding: 0 20px 6px;
+      -webkit-mask: radial-gradient(circle 10px at 0 var(--notch), transparent 97%, #000), radial-gradient(circle 10px at 100% var(--notch), transparent 97%, #000);
+      -webkit-mask-composite: source-in;
+      mask: radial-gradient(circle 10px at 0 var(--notch), transparent 97%, #000), radial-gradient(circle 10px at 100% var(--notch), transparent 97%, #000);
+      mask-composite: intersect;
+      animation: ticket-in .5s .45s cubic-bezier(.2, .8, .2, 1) both;
+    }
+    .done-summary[data-ticket]::before {
+      content: attr(data-ticket);
+      display: block;
+      height: var(--notch);
+      line-height: calc(var(--notch) - 2px);
+      margin: 0 -20px;
+      padding: 0 20px;
+      background: var(--terra-soft);
+      border-bottom: 2px dashed rgba(31, 30, 29, 0.18);
+      color: var(--terra-text);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    @keyframes ticket-in { from { opacity: 0; transform: translateY(12px); } }
+    .screen:not(.active) .done-summary { animation: none; }
+
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation-duration: .01ms !important; } }
 
   </style>
@@ -1066,7 +1153,7 @@
       <div class="done-icon" id="s7Icon"><svg class="done-tick" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30"/><path d="M20 33l8.5 8.5L44 25"/></svg></div>
       <h1 id="s7Title">You're Good to Go!</h1>
       <p class="subtitle" id="s7Subtitle">Your inspection is complete and on file. Enjoy your rental.</p>
-      <div class="done-summary" id="doneSummary"></div>
+      <div class="done-summary" id="doneSummary" data-ticket="Rental summary"></div>
       <div class="upload-warning" id="s7PhotoWarning" role="status" hidden></div>
       <div class="spacer"></div>
       <button class="btn btn-primary" id="s7DoneBtn">Done</button>
@@ -1209,7 +1296,7 @@
       <div class="spacer"></div>
       <h1 id="cancelTitle">One moment</h1>
       <p class="subtitle" id="cancelSubtitle">Finding your reservation.</p>
-      <div class="done-summary" id="cancelSummary" hidden></div>
+      <div class="done-summary" id="cancelSummary" data-ticket="Your reservation" hidden></div>
       <div class="error-msg" id="cancelError"></div>
       <div class="spacer"></div>
       <button class="btn btn-danger" id="cancelYesBtn" type="button" hidden>Yes, cancel</button>
@@ -1233,7 +1320,7 @@
         <input type="text" id="reschedLast" autocomplete="family-name" />
         <button class="btn btn-primary" id="reschedFindBtn" type="button">Find my reservation</button>
       </div>
-      <div class="done-summary" id="reschedSummary" hidden></div>
+      <div class="done-summary" id="reschedSummary" data-ticket="Your reservation" hidden></div>
       <div id="reschedForm" hidden>
         <label for="reschedPickupDate">New pickup date</label>
         <input type="date" id="reschedPickupDate" />
