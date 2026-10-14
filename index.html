@@ -997,6 +997,7 @@
 
       <button class="btn btn-primary" id="findVehicleBtn">Start Rental Process</button>
       <button class="btn btn-secondary" id="changePickupBtn" type="button">Change pickup time</button>
+      <button class="btn btn-secondary" id="extendRentalBtn" type="button">Extend my rental</button>
 
       <div class="error-msg" id="s1Error"></div>
       <div class="spacer"></div>
@@ -1338,6 +1339,49 @@
       <button class="btn btn-secondary" id="reschedRetryBtn" type="button" hidden>Try again</button>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════════
+         An open rental: return it, or extend it
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="sReturnChoice">
+      <button class="return-back-btn" id="returnChoiceBack" type="button">← Back</button>
+      <h1>Your rental</h1>
+      <p class="subtitle">Bringing the vehicle back now, or need it for longer?</p>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="returnChoiceReturnBtn" type="button">Return the vehicle</button>
+      <button class="btn btn-secondary" id="returnChoiceExtendBtn" type="button">Extend my rental</button>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         Extend a rental, from the buttons above or the link in the
+         return reminder text (#e=token)
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="sExtend">
+      <button class="return-back-btn" id="extendBack" type="button">← Back</button>
+      <h1 id="extendTitle">Extend my rental</h1>
+      <p class="subtitle" id="extendSubtitle">Finding your rental.</p>
+      <div id="extendFind" hidden>
+        <label for="extendCode">Reservation Code</label>
+        <input type="text" id="extendCode" placeholder="ABC 123 456"
+               autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+        <label for="extendLast">Last Name</label>
+        <input type="text" id="extendLast" autocomplete="family-name" />
+        <button class="btn btn-primary" id="extendFindBtn" type="button">Find my rental</button>
+      </div>
+      <div class="done-summary" id="extendSummary" data-ticket="Your rental" hidden></div>
+      <div id="extendForm" hidden>
+        <label for="extendReturnDate">New return date</label>
+        <input type="date" id="extendReturnDate" />
+        <label for="extendReturnTime">New return time</label>
+        <div class="select-wrap"><select id="extendReturnTime"></select></div>
+        <div class="done-summary" id="extendPrice" data-ticket="Estimated total" hidden></div>
+        <p class="subtitle" id="extendPriceNote" hidden>An estimate at your booked daily rate, before tax. Fuel and any damage are settled when you return the vehicle as usual. Nothing is charged now.</p>
+      </div>
+      <div class="error-msg" id="extendError"></div>
+      <div id="extendLatest" hidden></div>
+      <button class="btn btn-primary" id="extendConfirmBtn" type="button" hidden>Confirm new return</button>
+      <button class="btn btn-secondary" id="extendRetryBtn" type="button" hidden>Try again</button>
+    </div>
+
   </div><!-- /.app -->
 
   <!-- Photo lightbox, rendered outside .app so it covers the full screen -->
@@ -1470,7 +1514,7 @@
     // ── Screen routing ────────────────────────────────────────────────────────
     const PICKUP_SCREENS = ['s1','sDriver','s2','s4','sProt','s6','s7'];
     const RETURN_SCREENS = ['s1','s8','s9','s9b','s10','s10b','s11'];
-    const ALL_SCREENS    = ['s1','sDriver','s2','s4','sProt','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel','sResched'];
+    const ALL_SCREENS    = ['s1','sDriver','s2','s4','sProt','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel','sResched','sReturnChoice','sExtend'];
 
     // A field typed into on the screen being left keeps the focus, and the
     // iPhone keyboard with it, after its screen is hidden. iPhone Safari then
@@ -1937,7 +1981,8 @@
         document.getElementById('s10Error').textContent                = '';
         document.getElementById('vehicleLocationInput').value          = '';
         document.getElementById('s10bError').textContent               = '';
-        goTo('s8');
+        // Return it now, or extend it first (sReturnChoice).
+        goTo('sReturnChoice');
       } else {
         // A vehicle flagged for preventative maintenance cannot go out through
         // this app: opening a rental on it is Admin-only in the database, and
@@ -3098,7 +3143,7 @@
     // ════════════════════════════════════════════════════════════════════════
     // Screen 8: Return · Step 1 of 5 · Odometer
     // ════════════════════════════════════════════════════════════════════════
-    document.getElementById('s8Back').addEventListener('click', () => goTo('s1'));
+    document.getElementById('s8Back').addEventListener('click', () => goTo('sReturnChoice'));
 
     // Live camera only; see openLiveCamera. Taking it again replaces it.
     document.getElementById('takeReturnOdoPhotoBtn').addEventListener('click', () => {
@@ -3802,10 +3847,313 @@
       }
     }
 
-    // A cancel, app or change link opened in a tab that already has this page
-    // loaded only changes the fragment, which does not reload the page by itself.
+    // ════════════════════════════════════════════════════════════════════════
+    // Extend a rental
+    // ════════════════════════════════════════════════════════════════════════
+    // From Extend my rental on the first screen, after a rental that is out is
+    // found, or the link the return reminder ends with: this page's address
+    // and "#e=<token>", the same token as the app link. With a token or a
+    // rental already found, the rental is looked up straight away; otherwise
+    // the customer gives the code and last name. Both go through two database
+    // functions (fleetr-infra, rental_extensions.sql): extension_lookup reads
+    // the return, the opening hours and the price, and extend_rental_by_link
+    // checks the new return with fleetr.ai's availability and saves it, or
+    // says the latest return that fits. Then the worker texts the new return.
+    const extendToken = (() => {
+      if (!location.hash.startsWith('#e=')) return null;
+      const t = location.hash.slice(3);
+      return /^[A-Za-z0-9_-]{16,64}$/.test(t) ? t : '';
+    })();
+    const EXTENSION_TEXT_URL = 'https://fleetr-ai-proxy.connor-0a5.workers.dev/rental-extended';
+    {
+      const el = (id) => document.getElementById(id);
+      const titleEl = el('extendTitle'), subEl = el('extendSubtitle'), sumEl = el('extendSummary');
+      const findEl = el('extendFind'), formEl = el('extendForm'), errEl = el('extendError');
+      const priceEl = el('extendPrice'), priceNoteEl = el('extendPriceNote'), latestEl = el('extendLatest');
+      const rDate = el('extendReturnDate'), rTime = el('extendReturnTime');
+      const confirmBtn = el('extendConfirmBtn'), retryBtn = el('extendRetryBtn');
+
+      // "2026-10-22T11:00" is the branch's own local time. Read and written as
+      // UTC here only so the browser's time zone never moves it.
+      const asMs = (d, t) => Date.parse(`${d}T${t}:00Z`);
+      const fmtWhen = (local) => {
+        const ms = Date.parse(`${local}:00Z`);
+        if (!Number.isFinite(ms)) return '';
+        const d = new Date(ms);
+        const day = d.toLocaleDateString('en-CA', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' });
+        const h = d.getUTCHours(), m = d.getUTCMinutes();
+        return `${day} at ${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+      };
+      const money = (n) => `$${Number(n).toFixed(2)}`;
+      // Days counted as fleetr.ai counts them (booking_days).
+      const daysBetween = (a, b) => Math.max(1, Math.ceil((b - a) / 86400000));
+      const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+      const toMins = (hm) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(hm || '')); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+
+      let proof = null;        // { code, last }: what both calls are given
+      let current = null;      // what extension_lookup returned
+      let backTo = 's1';
+      let busy = false;
+
+      const company = () => (current && current.company) || 'the rental company';
+      const REASONS = {
+        not_found:            () => 'We could not find that rental. Check the code and last name, or open the link from your text again.',
+        not_picked_up:        () => 'This reservation has not been picked up yet. To change its times, use Change pickup time.',
+        not_open:             () => 'This rental has already been returned, so it cannot be extended here.',
+        not_changeable:       () => `This rental cannot be extended online. Please contact ${company()}.`,
+        not_bookable:         () => `This rental cannot be extended online. Please contact ${company()}.`,
+        overdue:              () => `This rental is past its return time, so it cannot be extended online. Please contact ${company()} as soon as possible.`,
+        limit:                () => `This rental has been extended 3 times, the most allowed online. Please contact ${company()} to extend it again.`,
+        bad_time:             () => 'Pick a time on the quarter hour.',
+        not_later:            () => 'Pick a return later than your current one.',
+        too_long:             () => 'That is longer than this branch rents a vehicle for.',
+        return_outside_hours: () => 'The branch is closed at that return time.',
+        vehicle_booked:       () => 'Your vehicle is booked for another customer by then.',
+        not_available:        () => 'A vehicle is not free for all of that extra time.',
+      };
+      const STOPS = ['not_found', 'not_picked_up', 'not_open', 'not_changeable', 'not_bookable', 'overdue', 'limit'];
+
+      const summaryRows = (target, rows) => {
+        // Built as elements, not markup: these are words from the database.
+        target.replaceChildren(...rows.filter(([, v]) => v).map(([label, value]) => {
+          const row = document.createElement('div'); row.className = 'done-row';
+          const l = document.createElement('span');  l.className = 'dr-label'; l.textContent = label;
+          const v = document.createElement('span');  v.className = 'dr-value'; v.textContent = value;
+          row.append(l, v);
+          return row;
+        }));
+        target.hidden = !rows.some(([, v]) => v);
+      };
+      const view = ({ title, subtitle, find = false, form = false, retry = false }) => {
+        titleEl.textContent = title;
+        subEl.textContent = subtitle;
+        findEl.hidden = !find;
+        formEl.hidden = !form;
+        confirmBtn.hidden = !form;
+        retryBtn.hidden = !retry;
+        if (!form) { sumEl.hidden = true; latestEl.hidden = true; }
+        errEl.textContent = '';
+      };
+
+      // The return times offered on the date picked: every quarter hour after
+      // the current return, within opening hours unless the branch takes
+      // after-hours drop-off, and no later than the longest rental allows.
+      const fillTimes = (keep) => {
+        const c = current;
+        const opts = [];
+        const day = rDate.value;
+        const dayMs = Date.parse(`${day}T00:00:00Z`);
+        if (c && Number.isFinite(dayMs)) {
+          const hours = c.hours && c.hours[DAYS[new Date(dayMs).getUTCDay()]];
+          const open = c.afterHoursDropoff ? 0 : toMins(hours && hours.open);
+          const close = c.afterHoursDropoff ? 23 * 60 + 45 : toMins(hours && hours.close);
+          const after = Date.parse(`${c.return}:00Z`);
+          const latest = c.latestAllowed ? Date.parse(`${c.latestAllowed}:00Z`) : Infinity;
+          if (open !== null && close !== null) {
+            for (let m = Math.ceil(open / 15) * 15; m <= close; m += 15) {
+              const hm = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+              const at = asMs(day, hm);
+              if (at <= after || at > latest) continue;
+              const o = document.createElement('option');
+              o.value = hm;
+              o.textContent = `${Math.floor(m / 60) % 12 || 12}:${String(m % 60).padStart(2, '0')} ${m < 720 ? 'AM' : 'PM'}`;
+              opts.push(o);
+            }
+          }
+        }
+        rTime.replaceChildren(...opts);
+        rTime.disabled = !opts.length;
+        if (keep && opts.some((o) => o.value === keep)) rTime.value = keep;
+        confirmBtn.disabled = !opts.length;
+        if (!opts.length && rDate.value) errEl.textContent = 'There are no return times on that date. Pick another date.';
+      };
+
+      // The total before and after, at the booked daily rate, as the customer
+      // picks. Nothing when the rental has no rate on file.
+      const showPrice = () => {
+        const c = current, p = c && c.price;
+        const from = c && Date.parse(`${c.pickup}:00Z`), to = asMs(rDate.value, rTime.value);
+        if (!p || p.perDay == null || !Number.isFinite(from) || !Number.isFinite(to) || to <= from) {
+          priceEl.hidden = true; priceNoteEl.hidden = true; return;
+        }
+        const days = daysBetween(from, to);
+        const total = Math.round(p.perDay * days * 100) / 100;
+        summaryRows(priceEl, [
+          ['Daily rate', `${money(p.perDay)} a day`],
+          ['Now', p.total != null ? `${p.days} day${p.days === 1 ? '' : 's'}, ${money(p.total)}` : ''],
+          ['New', `${days} day${days === 1 ? '' : 's'}, ${money(total)}`],
+          ['Difference', p.total != null ? `${money(Math.max(0, total - p.total))} more` : ''],
+        ]);
+        priceNoteEl.hidden = false;
+      };
+      const setReturn = (local) => {
+        const [d, t] = String(local).split('T');
+        rDate.value = d;
+        fillTimes(t);
+        latestEl.hidden = true;
+        showPrice();
+      };
+
+      const showRental = (r) => {
+        current = r;
+        view({ title: 'Extend my rental',
+          subtitle: `${r.firstName ? `Hi ${r.firstName}, pick` : 'Pick'} a new return date and time. `
+            + `You can extend this rental ${r.extensionsLeft} more time${r.extensionsLeft === 1 ? '' : 's'} online.`,
+          form: true });
+        summaryRows(sumEl, [
+          ['Company',        r.company],
+          ['Return to',      r.location],
+          ['Vehicle class',  r.vehicleClass],
+          ['Due back now',   fmtWhen(r.return)],
+        ]);
+        rDate.min = r.return.slice(0, 10);
+        if (r.latestAllowed) rDate.max = r.latestAllowed.slice(0, 10); else rDate.removeAttribute('max');
+        // A day later at the same time to start with, or the first time
+        // offered after that.
+        const next = new Date(Date.parse(`${r.return}:00Z`) + 86400000).toISOString();
+        rDate.value = next.slice(0, 10);
+        fillTimes(next.slice(11, 16));
+        if (!rTime.options.length) { rDate.value = r.return.slice(0, 10); fillTimes(); }
+        errEl.textContent = '';
+        showPrice();
+      };
+
+      const lookup = async () => {
+        view({ title: 'One moment', subtitle: 'Finding your rental.' });
+        let data = null;
+        try {
+          const out = await supabase.rpc('extension_lookup', { p_code: proof.code, p_last_name: proof.last });
+          if (out.error) throw out.error;
+          data = out.data;
+        } catch (e) {
+          console.warn('extension_lookup failed:', e);
+          view({ title: 'Unable to connect', subtitle: 'Check your connection and try again.', retry: true });
+          return;
+        }
+        if (data && data.ok) { showRental(data); return; }
+        current = data;
+        if (data && data.reason === 'not_found' && !proof.last) {
+          view({ title: 'This link is not valid', subtitle: 'Enter your reservation code and last name instead.', find: true });
+          return;
+        }
+        view({ title: 'Extend my rental', subtitle: (REASONS[data && data.reason] || REASONS.not_changeable)(),
+          find: data && data.reason === 'not_found' });
+      };
+
+      rDate.addEventListener('change', () => { errEl.textContent = ''; latestEl.hidden = true; fillTimes(rTime.value); showPrice(); });
+      rTime.addEventListener('change', () => { errEl.textContent = ''; latestEl.hidden = true; showPrice(); });
+
+      // The latest return that fits, offered when the one asked for does not.
+      const showLatest = (latest, price) => {
+        if (!latest) {
+          latestEl.replaceChildren(Object.assign(document.createElement('p'), {
+            className: 'subtitle', textContent: `Nothing later than your current return is free. Please contact ${company()}.` }));
+          latestEl.hidden = false;
+          return;
+        }
+        const head = document.createElement('p'); head.className = 'subtitle';
+        head.textContent = `The latest return we can offer is ${fmtWhen(latest)}`
+          + (price && price.total != null ? `, ${money(price.total)} estimated in total.` : '.');
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'btn btn-secondary'; b.textContent = 'Use this time';
+        b.addEventListener('click', () => { setReturn(latest); errEl.textContent = ''; });
+        latestEl.replaceChildren(head, b);
+        latestEl.hidden = false;
+      };
+
+      confirmBtn.addEventListener('click', async () => {
+        if (busy) return;
+        if (!rDate.value || !rTime.value) { errEl.textContent = 'Pick a return date and time.'; return; }
+        busy = true; confirmBtn.disabled = true; confirmBtn.textContent = 'Saving…';
+        let data = null;
+        try {
+          const out = await supabase.rpc('extend_rental_by_link', {
+            p_code: proof.code, p_last_name: proof.last, p_return: `${rDate.value} ${rTime.value}`,
+          });
+          if (out.error) throw out.error;
+          data = out.data;
+        } catch (e) {
+          console.warn('extend_rental_by_link failed:', e);
+          errEl.textContent = 'Unable to connect. Your rental has not been changed. Please try again.';
+        }
+        busy = false; confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm new return';
+        if (!data) return;
+        if (!data.ok) {
+          if (STOPS.includes(data.reason)) {
+            view({ title: 'Extend my rental', subtitle: (REASONS[data.reason] || REASONS.not_changeable)() });
+            return;
+          }
+          errEl.textContent = (REASONS[data.reason] || (() => 'That time could not be saved. Pick another.'))();
+          if (data.reason !== 'bad_time' && data.reason !== 'not_later') showLatest(data.latest, data.latestPrice);
+          return;
+        }
+        // The text with the new return. Asked for once; the worker sends it
+        // once however often it is asked.
+        if (data.appToken) {
+          fetch(EXTENSION_TEXT_URL, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: data.appToken }),
+          }).catch((e) => console.warn('extension text request failed:', e));
+        }
+        const p = data.price, was = data.was;
+        view({ title: 'Rental extended',
+          subtitle: `Your rental is now due back ${fmtWhen(data.return)}. We will text you to confirm.` });
+        summaryRows(sumEl, [
+          ['New return', fmtWhen(data.return)],
+          ['Estimated total', p && p.total != null ? `${money(p.total)} before tax` : ''],
+          ['Difference', p && p.total != null && was && was.total != null ? `${money(Math.max(0, p.total - was.total))} more` : ''],
+        ]);
+      });
+
+      retryBtn.addEventListener('click', () => { if (proof) lookup(); });
+
+      el('extendFindBtn').addEventListener('click', () => {
+        const code = el('extendCode').value.trim(), last = el('extendLast').value.trim();
+        if (!code || !last) { errEl.textContent = 'Enter your reservation code and last name.'; return; }
+        proof = { code, last };
+        lookup();
+      });
+
+      el('extendBack').addEventListener('click', () => {
+        if (extendToken && backTo === 's1') { history.replaceState(null, '', location.pathname + location.search); openAppLink(extendToken); }
+        goTo(backTo);
+      });
+
+      // The button on the first screen: with an app link the rental is
+      // already known; otherwise the code and last name are asked for.
+      el('extendRentalBtn').addEventListener('click', () => {
+        backTo = 's1';
+        goTo('sExtend');
+        if (appLinkToken) { proof = { code: appLinkToken, last: '' }; lookup(); return; }
+        el('extendCode').value = resCodeEl.value;
+        view({ title: 'Extend my rental', subtitle: 'Enter your reservation code and last name to find your rental.', find: true });
+      });
+
+      // After a rental that is out is found: return it now, or extend it,
+      // with the code and last name (or app link) it was found with.
+      el('returnChoiceReturnBtn').addEventListener('click', () => goTo('s8'));
+      el('returnChoiceBack').addEventListener('click', () => goTo('s1'));
+      el('returnChoiceExtendBtn').addEventListener('click', () => {
+        const found = customerSession && customerSession.proof;
+        backTo = 'sReturnChoice';
+        goTo('sExtend');
+        if (!found) { view({ title: 'Extend my rental', subtitle: 'Enter your reservation code and last name to find your rental.', find: true }); return; }
+        proof = { code: found.code, last: found.lastName || '' };
+        lookup();
+      });
+
+      if (extendToken !== null && cancelToken === null) {
+        backTo = 's1';
+        goTo('sExtend');
+        if (extendToken) { proof = { code: extendToken, last: '' }; lookup(); }
+        else view({ title: 'This link is not valid', subtitle: 'Enter your reservation code and last name instead.', find: true });
+      }
+    }
+
+    // A cancel, app, change or extend link opened in a tab that already has
+    // this page loaded only changes the fragment, which does not reload the
+    // page by itself.
     window.addEventListener('hashchange', () => {
-      if (location.hash.startsWith('#c=') || location.hash.startsWith('#a=') || location.hash.startsWith('#r=')) location.reload();
+      if (['#c=', '#a=', '#r=', '#e='].some((m) => location.hash.startsWith(m))) location.reload();
     });
 
     // ── Enter moves to the next field ─────────────────────────────────────────
