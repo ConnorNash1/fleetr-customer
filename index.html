@@ -3808,6 +3808,45 @@
       if (location.hash.startsWith('#c=') || location.hash.startsWith('#a=') || location.hash.startsWith('#r=')) location.reload();
     });
 
+    // ── Enter moves to the next field ─────────────────────────────────────────
+    // On every screen, Enter in a field goes to the next field, and on the last
+    // field it presses the screen's main button, the first one after the
+    // field. A multi-line box keeps Enter for a new line. On a phone the return
+    // key reads Next, or Done on the last field.
+    const ENTER_FIELD_SKIP = ['hidden', 'checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'range', 'color', 'image'];
+    const enterShown = n => n.getClientRects().length > 0;
+    const enterIsField = n => n instanceof HTMLElement && !n.disabled && !n.readOnly && enterShown(n)
+      && (n.tagName === 'SELECT' || n.tagName === 'TEXTAREA'
+        || (n.tagName === 'INPUT' && !ENTER_FIELD_SKIP.includes((n.getAttribute('type') || 'text').toLowerCase())));
+    const enterFieldsOf = screen => Array.from(screen.querySelectorAll('input, select, textarea')).filter(enterIsField);
+
+    document.addEventListener('focusin', e => {
+      const field = e.target;
+      if (!enterIsField(field) || field.tagName === 'TEXTAREA') return;
+      const screen = field.closest('.screen');
+      if (!screen) return;
+      const fields = enterFieldsOf(screen);
+      field.setAttribute('enterkeyhint', fields[fields.length - 1] === field ? 'done' : 'next');
+    });
+
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' || e.isComposing || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+      const field = e.target;
+      if (!enterIsField(field) || field.tagName === 'TEXTAREA') return;
+      const screen = field.closest('.screen');
+      if (!screen) return;
+      const fields = enterFieldsOf(screen);
+      const at = fields.indexOf(field);
+      if (at < 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const next = fields[at + 1];
+      if (next) { next.focus(); return; }
+      const main = Array.from(screen.querySelectorAll('.btn-primary'))
+        .find(b => enterShown(b) && (field.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING));
+      if (main && !main.disabled) main.click();
+    }, true);
+
     // ── Initialise ────────────────────────────────────────────────────────────
     // Size canvas on load in case user goes straight to s6 somehow
     window.addEventListener('resize', () => {
