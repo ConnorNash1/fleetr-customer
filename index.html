@@ -2205,8 +2205,8 @@
       const n = (k) => `${k} day${k === 1 ? '' : 's'}`;
       const lines = (rental.lines || []).map((l) => [
         l.kind === 'season' ? `${n(l.days)} in ${l.name}, ${seasonDay(l.start)} to ${seasonDay(l.end)} (${money(l.perDay)} a day)`
-          : l.basis === 'weekly'  ? `${n(l.days)} at the weekly rate (${money(l.periodRate)} a week)`
-          : l.basis === 'monthly' ? `${n(l.days)} at the monthly rate (${money(l.periodRate)} a month)`
+          : l.basis === 'weekly'  ? `${n(l.days)} × ${money(l.perDay)} weekly rate`
+          : l.basis === 'monthly' ? `${n(l.days)} × ${money(l.perDay)} monthly rate`
           : `${n(l.days)} at ${money(l.perDay)} a day`,
         Number(l.amount)]);
       if (rental.cap) lines.push([`Capped at the ${rental.cap.days} day price`, Number(rental.cap.amount)]);
@@ -2907,6 +2907,9 @@
         r.appendChild(el('span', label === 'Total' ? 'protection-card__name' : 'protection-card__price', money(n)));
         charges.appendChild(r);
       });
+      // Against every day outside a season at the normal daily rate.
+      const savings = Number(rentalBreakdown?.savings) || 0;
+      if (savings > 0) charges.appendChild(el('p', 'protection-card__wording', `You save ${money(savings)}`));
       charges.appendChild(el('p', 'protection-card__wording',
         `Estimated for ${days} day${days === 1 ? '' : 's'}. Final charges are confirmed when the vehicle is returned.`));
       summary.appendChild(charges);
@@ -3764,8 +3767,10 @@
           if (!q || q.total == null) { priceEl.hidden = true; return; }
           const seasonal = (q.rental && q.rental.lines || []).filter((l) => l.kind === 'season')
             .map((l) => `${l.days} day${l.days === 1 ? '' : 's'} in ${l.name} at ${money(l.perDay)} a day`);
+          const saved = Number(q.rental && q.rental.savings) || 0;
           priceEl.textContent = `${q.days} day${q.days === 1 ? '' : 's'}, ${money(q.total)} estimated before tax`
-            + (seasonal.length ? `, including ${seasonal.join(' and ')}` : '') + was;
+            + (seasonal.length ? `, including ${seasonal.join(' and ')}` : '') + was
+            + (saved > 0 ? ` You save ${money(saved)}.` : '');
           priceEl.hidden = false;
         }, 250);
       };
@@ -4077,6 +4082,7 @@
             now,
             ['New', `${q.days} day${q.days === 1 ? '' : 's'}, ${money(q.total)}`],
             ['Difference', p.total != null ? `${money(Math.max(0, q.total - p.total))} more` : ''],
+            Number(q.rental.savings) > 0 ? ['You save', money(Number(q.rental.savings))] : ['', ''],
           ]);
           priceNoteEl.hidden = false;
         }, 250);
