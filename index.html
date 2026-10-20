@@ -2204,7 +2204,8 @@
     function rentalPriceLines(rental) {
       const n = (k) => `${k} day${k === 1 ? '' : 's'}`;
       const lines = (rental.lines || []).map((l) => [
-        l.kind === 'season' ? `${n(l.days)} in ${l.name}, ${seasonDay(l.start)} to ${seasonDay(l.end)} (${money(l.perDay)} a day)`
+        l.kind === 'season' && (l.basis === 'weekly' || l.basis === 'monthly') ? `${n(l.days)} × ${money(l.perDay)} ${l.name} ${l.basis} rate`
+          : l.kind === 'season' ? `${n(l.days)} in ${l.name}, ${seasonDay(l.start)} to ${seasonDay(l.end)} (${money(l.perDay)} a day)`
           : l.basis === 'weekly'  ? `${n(l.days)} × ${money(l.perDay)} weekly rate`
           : l.basis === 'monthly' ? `${n(l.days)} × ${money(l.perDay)} monthly rate`
           : `${n(l.days)} at ${money(l.perDay)} a day`,
