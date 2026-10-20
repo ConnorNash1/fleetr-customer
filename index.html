@@ -1380,7 +1380,7 @@
         <label for="extendReturnTime">New return time</label>
         <div class="select-wrap"><select id="extendReturnTime"></select></div>
         <div class="done-summary" id="extendPrice" data-ticket="Estimated total" hidden></div>
-        <p class="subtitle" id="extendPriceNote" hidden>An estimate at your booked daily rate, before tax. Fuel and any damage are settled when you return the vehicle as usual. Nothing is charged now.</p>
+        <p class="subtitle" id="extendPriceNote" hidden>An estimate at the rates you booked at, before tax. Fuel and any damage are settled when you return the vehicle as usual. Nothing is charged now.</p>
       </div>
       <div class="error-msg" id="extendError"></div>
       <div id="extendLatest" hidden></div>
@@ -2178,6 +2178,41 @@
     const contractTerms = () => customerSession?.reservation?.contract || {};
     const money = (n) => `$${(Number(n) || 0).toFixed(2)}`;
 
+    // ── The rental's price, worked out by the database ──
+    // rental_price_by_link (seasonal_rates.sql in fleetr-infra) prices the
+    // reservation from the rates it was booked at: normal days, each season's
+    // days at its rate, weekly and monthly rates, and the cap. Days are counted
+    // as fleetr.ai counts them (booking_days). Times are "YYYY-MM-DD HH:MM" in
+    // the branch's time; a null pickup is now at the branch and a null return
+    // the booked one. Null when it cannot be had.
+    async function priceByLink(proof, pickup, ret) {
+      if (!proof || !proof.code) return null;
+      try {
+        const { data, error } = await supabase.rpc('rental_price_by_link', {
+          p_code: proof.code, p_last_name: proof.lastName ?? proof.last ?? '', p_pickup: pickup, p_return: ret,
+        });
+        return !error && data && data.ok ? data : null;
+      } catch (e) {
+        console.warn('rental_price_by_link failed:', e);
+        return null;
+      }
+    }
+    const SEASON_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const seasonDay = (md) => { const [m, d] = String(md || '').split('-').map(Number); return m && d ? `${SEASON_MONTHS[m - 1]} ${d}` : ''; };
+    // The rental's lines as [label, amount], so a summer day shows why it
+    // costs more.
+    function rentalPriceLines(rental) {
+      const n = (k) => `${k} day${k === 1 ? '' : 's'}`;
+      const lines = (rental.lines || []).map((l) => [
+        l.kind === 'season' ? `${n(l.days)} in ${l.name}, ${seasonDay(l.start)} to ${seasonDay(l.end)} (${money(l.perDay)} a day)`
+          : l.basis === 'weekly'  ? `${n(l.days)} at the weekly rate (${money(l.periodRate)} a week)`
+          : l.basis === 'monthly' ? `${n(l.days)} at the monthly rate (${money(l.periodRate)} a month)`
+          : `${n(l.days)} at ${money(l.perDay)} a day`,
+        Number(l.amount)]);
+      if (rental.cap) lines.push([`Capped at the ${rental.cap.days} day price`, Number(rental.cap.amount)]);
+      return lines;
+    }
+
     function resetDriver2() {
       driver2Choice = null;
       Object.values(DRIVER_INPUTS.d2).forEach(id => { document.getElementById(id).value = ''; });
@@ -2733,6 +2768,8 @@
     // lookup_vehicle_contract (fleetr-infra, pickup_readings.sql), shown
     // read-only; complete_pickup records the same readings itself.
     let contractVehicle = null;
+    // What rental_price_by_link returned for now to the booked return, or null.
+    let contractPrice = null;
 
     async function openContract() {
       const proof = customerSession?.proof;
@@ -2748,6 +2785,7 @@
           contractVehicle = null;
         }
       }
+      contractPrice = await priceByLink(proof, null, null);
       buildContract();
       sizeCanvas();
       goTo('s6');
@@ -2781,11 +2819,21 @@
         return c;
       };
 
-      // Days from today, when the vehicle goes out, to the due date, at least one.
+      // Days from now, when the vehicle goes out, to the due back time,
+      // counted as fleetr.ai counts them: every 24 hours or part of them, at
+      // least one. The database's count when it answered.
       const today = new Date().toLocaleDateString('en-CA');
       const to    = /^\d{4}-\d{2}-\d{2}$/.test(String(res.returnDate || '')) ? res.returnDate : null;
-      const days  = to ? Math.max(1, Math.round((new Date(`${to}T00:00:00`) - new Date(`${today}T00:00:00`)) / 86400000)) : 1;
+      const due   = to ? new Date(`${to}T${/^\d{1,2}:\d{2}$/.test(String(res.returnTime || '')) ? String(res.returnTime).padStart(5, '0') : '23:59'}:00`) : null;
+      const days  = contractPrice?.price?.days
+        || (due ? Math.max(1, Math.ceil((due - Date.now()) / 86400000)) : 1);
       const rate  = Number(res.dailyRate) || 0;
+      // The vehicle's lines: the rates it was booked at, day by day, when it
+      // has them, or the daily rate times the days.
+      const rentalBreakdown = contractPrice?.price?.rental || null;
+      const vehicleLines = rentalBreakdown
+        ? rentalPriceLines(rentalBreakdown)
+        : [[`Vehicle (${days} day${days === 1 ? '' : 's'} × ${money(rate)})`, rate * days]];
 
       const drivers = [readDriver('main'), ...(driver2Choice ? [readDriver('d2')] : [])];
       const coverages = vehicle?.switchPickup ? [] : (protectionOffer || []).map(p => ({
@@ -2793,7 +2841,7 @@
         accepted: p.required || protectionAnswers[String(p.productId)]?.accepted === true,
       }));
 
-      const rental = rate * days;
+      const rental = rentalBreakdown ? Number(rentalBreakdown.total) : rate * days;
       const additional = [
         ...coverages.filter(c => c.accepted).map(c => [`${c.name} (${days} day${days === 1 ? '' : 's'} × ${money(c.price)})`, c.price * days]),
       ];
@@ -2843,9 +2891,7 @@
         ['Comprehensive', ded.comprehensive != null ? money(ded.comprehensive) : 'Not set'],
       ]));
 
-      const charges = card('Charges', [
-        [`Vehicle (${days} day${days === 1 ? '' : 's'} × ${money(rate)})`, money(rental)],
-      ]);
+      const charges = card('Charges', vehicleLines.map(([label, n]) => [label, n < 0 ? `-${money(-n)}` : money(n)]));
       charges.appendChild(el('div', 'protection-card__name', 'Additional charges'));
       (additional.length ? additional : [['None', 0]]).forEach(([label, n]) => {
         const r = el('div', 'protection-card__head');
@@ -3692,17 +3738,36 @@
         errEl.textContent = '';
       };
 
-      // The price at the booked daily rate, before and after, as the customer
-      // picks. Nothing when the reservation has no rate on file.
+      // The price at the booked rates, before and after, as the customer
+      // picks. Nothing when the reservation has no rate on file. A booking
+      // with seasons, weekly or monthly rates is priced by the database, day
+      // by day; one without is the daily rate times the days.
+      let priceAsk = 0;
       const showPrice = () => {
         const p = current && current.price;
         const a = asMs(pDate.value, pTime.value), b = asMs(rDate.value, rTime.value);
+        const ask = ++priceAsk;
         if (!p || p.perDay == null || !Number.isFinite(a) || !Number.isFinite(b) || b <= a) { priceEl.hidden = true; return; }
-        const days = daysBetween(a, b);
-        const total = Math.round(p.perDay * days * 100) / 100;
-        priceEl.textContent = `${days} day${days === 1 ? '' : 's'}, ${money(total)} estimated before tax`
-          + (p.total != null ? ` (was ${p.days} day${p.days === 1 ? '' : 's'}, ${money(p.total)}).` : '.');
-        priceEl.hidden = false;
+        const was = p.total != null ? ` (was ${p.days} day${p.days === 1 ? '' : 's'}, ${money(p.total)}).` : '.';
+        if (!p.rental) {
+          const days = daysBetween(a, b);
+          const total = Math.round(p.perDay * days * 100) / 100;
+          priceEl.textContent = `${days} day${days === 1 ? '' : 's'}, ${money(total)} estimated before tax${was}`;
+          priceEl.hidden = false;
+          return;
+        }
+        setTimeout(async () => {
+          if (ask !== priceAsk) return;
+          const out = await priceByLink(proof, `${pDate.value} ${pTime.value}`, `${rDate.value} ${rTime.value}`);
+          if (ask !== priceAsk) return;
+          const q = out && out.price;
+          if (!q || q.total == null) { priceEl.hidden = true; return; }
+          const seasonal = (q.rental && q.rental.lines || []).filter((l) => l.kind === 'season')
+            .map((l) => `${l.days} day${l.days === 1 ? '' : 's'} in ${l.name} at ${money(l.perDay)} a day`);
+          priceEl.textContent = `${q.days} day${q.days === 1 ? '' : 's'}, ${money(q.total)} estimated before tax`
+            + (seasonal.length ? `, including ${seasonal.join(' and ')}` : '') + was;
+          priceEl.hidden = false;
+        }, 250);
       };
       const setFields = (pickup, ret) => {
         [pDate.value, pTime.value] = pickup.split('T');
@@ -3974,23 +4039,47 @@
         if (!opts.length && rDate.value) errEl.textContent = 'There are no return times on that date. Pick another date.';
       };
 
-      // The total before and after, at the booked daily rate, as the customer
-      // picks. Nothing when the rental has no rate on file.
+      // The total before and after, at the booked rates, as the customer
+      // picks. Nothing when the rental has no rate on file. A rental with
+      // seasons, weekly or monthly rates is priced by the database, day by
+      // day, and shows its lines; one without is the daily rate times the days.
+      let priceAsk = 0;
       const showPrice = () => {
         const c = current, p = c && c.price;
         const from = c && Date.parse(`${c.pickup}:00Z`), to = asMs(rDate.value, rTime.value);
+        const ask = ++priceAsk;
         if (!p || p.perDay == null || !Number.isFinite(from) || !Number.isFinite(to) || to <= from) {
           priceEl.hidden = true; priceNoteEl.hidden = true; return;
         }
-        const days = daysBetween(from, to);
-        const total = Math.round(p.perDay * days * 100) / 100;
-        summaryRows(priceEl, [
-          ['Daily rate', `${money(p.perDay)} a day`],
-          ['Now', p.total != null ? `${p.days} day${p.days === 1 ? '' : 's'}, ${money(p.total)}` : ''],
-          ['New', `${days} day${days === 1 ? '' : 's'}, ${money(total)}`],
-          ['Difference', p.total != null ? `${money(Math.max(0, total - p.total))} more` : ''],
-        ]);
-        priceNoteEl.hidden = false;
+        const now = ['Now', p.total != null ? `${p.days} day${p.days === 1 ? '' : 's'}, ${money(p.total)}` : ''];
+        if (!p.rental) {
+          const days = daysBetween(from, to);
+          const total = Math.round(p.perDay * days * 100) / 100;
+          summaryRows(priceEl, [
+            ['Daily rate', `${money(p.perDay)} a day`],
+            now,
+            ['New', `${days} day${days === 1 ? '' : 's'}, ${money(total)}`],
+            ['Difference', p.total != null ? `${money(Math.max(0, total - p.total))} more` : ''],
+          ]);
+          priceNoteEl.hidden = false;
+          return;
+        }
+        setTimeout(async () => {
+          if (ask !== priceAsk) return;
+          const out = await priceByLink(proof, c.pickup.replace('T', ' '), `${rDate.value} ${rTime.value}`);
+          if (ask !== priceAsk) return;
+          const q = out && out.price;
+          if (!q || q.total == null || !q.rental) { priceEl.hidden = true; priceNoteEl.hidden = true; return; }
+          const cover = Number(q.coverPerDay) || 0;
+          summaryRows(priceEl, [
+            ...rentalPriceLines(q.rental).map(([label, n]) => [label, n < 0 ? `-${money(-n)}` : money(n)]),
+            cover > 0 ? ['Coverages', `${q.days} day${q.days === 1 ? '' : 's'} at ${money(cover)} a day`] : ['', ''],
+            now,
+            ['New', `${q.days} day${q.days === 1 ? '' : 's'}, ${money(q.total)}`],
+            ['Difference', p.total != null ? `${money(Math.max(0, q.total - p.total))} more` : ''],
+          ]);
+          priceNoteEl.hidden = false;
+        }, 250);
       };
       const setReturn = (local) => {
         const [d, t] = String(local).split('T');
