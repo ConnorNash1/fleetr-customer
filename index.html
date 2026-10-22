@@ -95,13 +95,17 @@
       width: 150px;
       margin: 0 auto 28px;
     }
-    /* The fleetr logo (fleetr-horizontal-light.svg, the near-black one for
-       light backgrounds), 44px tall, with more than its clear space around it. */
+    /* The fleetr wordmark (wordmark.svg, "fleetr" in Inter SemiBold as
+       outlines), drawn as a mask in terracotta on the light page, 44px tall.
+       The width follows the wordmark's shape. */
     .wordmark {
       display: block;
       height: 44px;
-      width: auto;
+      width: calc(44px * 3.1099);
       margin: 0 auto 36px;
+      background-color: #F4845F;
+      -webkit-mask: url(/wordmark.svg) center / contain no-repeat;
+      mask: url(/wordmark.svg) center / contain no-repeat;
     }
 
     /* ── Typography ───────────────────────────────────────────── */
@@ -947,7 +951,7 @@
          from a personal app link (#a=), the link finds the booking instead.
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen active" id="sFind">
-      <img class="wordmark" src="/fleetr-horizontal-light.svg" alt="fleetr" width="188" height="44" />
+      <span class="wordmark" role="img" aria-label="fleetr"></span>
       <label for="resCodeInput">Reservation code</label>
       <input type="text" id="resCodeInput" placeholder="ABC 123 456"
              autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
