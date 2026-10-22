@@ -302,6 +302,12 @@
       transition: text-decoration-color 0.15s;
     }
     .btn-manual-toggle:hover { text-decoration-color: var(--terra); text-decoration-thickness: 2px; }
+    /* A plain text button under the primary one: no underline. */
+    .btn-plain {
+      display: block; width: 100%; min-height: 48px; margin-top: 4px;
+      background: none; border: none; cursor: pointer;
+      color: var(--terra-text); font-family: inherit; font-size: 1rem; font-weight: 600;
+    }
 
     /* ── Your booking: the small links under the button ───────── */
     .text-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 20px; margin-top: 4px; }
@@ -969,6 +975,18 @@
       </div>
     </div>
     <!-- ═══════════════════════════════════════════════════════════
+         Your rental: picked up and not returned yet. Return it, or extend it.
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="sOut">
+      <button class="return-back-btn" id="outBack" type="button">Back</button>
+      <h1>Your rental</h1>
+      <div class="done-summary" id="outSummary" data-ticket="Your rental"></div>
+      <div class="error-msg" id="outError"></div>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="outReturnBtn" type="button">Return vehicle</button>
+      <button class="btn-plain" id="outExtendBtn" type="button">Extend rental</button>
+    </div>
+    <!-- ═══════════════════════════════════════════════════════════
          Scan license: the main driver's, scanned or typed
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s1">
@@ -1379,6 +1397,7 @@
       <div class="spacer"></div>
       <div class="done-icon"><svg class="done-tick" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30"/><path d="M20 33l8.5 8.5L44 25"/></svg></div>
       <h1>Return submitted</h1>
+      <p class="subtitle">Leave the keys with a staff member.</p>
       <div class="upload-warning" id="s11PhotoWarning" role="status" hidden></div>
       <div class="spacer"></div>
       <button class="btn btn-primary" id="s11DoneBtn">Done</button>
@@ -1598,8 +1617,8 @@
     // One task a screen, in order. Protection is counted only when something
     // is offered. sCar is in the return too, for when the plate is asked for.
     const PICKUP_SCREENS = ['sFind','s1','sDriver','sProt','sCar','s2','s4','s6','s7'];
-    const RETURN_SCREENS = ['sFind','sCar','s8','s9','s9b','s10','s10b','s11'];
-    const ALL_SCREENS    = ['sFind','s1','sDriver','sProt','sCar','s2','s4','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel','sResched','sExtend'];
+    const RETURN_SCREENS = ['sFind','sOut','sCar','s8','s9','s9b','s10','s10b','s11'];
+    const ALL_SCREENS    = ['sFind','sOut','s1','sDriver','sProt','sCar','s2','s4','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel','sResched','sExtend'];
 
     // A field typed into on the screen being left keeps the focus, and the
     // iPhone keyboard with it, after its screen is hidden. iPhone Safari then
@@ -2062,11 +2081,71 @@
     function beginFlow() {
       const b = bookingInfo;
       if (b.stage === 'done') { findError.textContent = 'This rental is complete. Nothing more is needed here.'; return; }
-      if (b.stage === 'out') { flowType = 'return'; startReturn(); return; }
+      if (b.stage === 'out') { showOut(); return; }
       flowType = 'pickup';
       syncLicenseButtons();
       goTo('s1');
     }
+
+    // Your rental: the car out on the agreement (its plate, then its make and
+    // model by that plate and the branch's province) and when it is due back,
+    // in the branch's own time.
+    function dueText(local, withTime) {
+      const ms = Date.parse(`${local}:00Z`);
+      if (!Number.isFinite(ms)) return '';
+      const d = new Date(ms);
+      const day = d.toLocaleDateString('en-CA', { timeZone: 'UTC', year: 'numeric', month: 'long', day: 'numeric' });
+      if (!withTime) return day;
+      const h = d.getUTCHours(), m = d.getUTCMinutes();
+      return `${day}, ${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+    }
+    async function showOut() {
+      flowType = 'return';
+      const proof = customerSession.proof;
+      findBookingBtn.disabled = true;
+      findBookingBtn.innerHTML = '<span class="spinner"></span>Finding your rental…';
+      let plate = null, car = null;
+      try {
+        const { data } = await supabase.rpc('lookup_rental_status', { code: proof.code, last_name: proof.lastName });
+        plate = data?.rentalAgreement?.plate || null;
+      } catch (e) { console.warn('lookup_rental_status failed:', e); }
+      if (plate && bookingInfo?.province) {
+        try {
+          const { data } = await supabase.rpc('lookup_vehicle_by_plate', {
+            plate, province: bookingInfo.province, operator_id: customerSession.operatorId,
+          });
+          car = data;
+        } catch (e) { console.warn('lookup_vehicle_by_plate failed:', e); }
+      }
+      findBookingBtn.disabled = false;
+      findBookingBtn.textContent = 'Start check-in';
+      const rows = [
+        ['Vehicle', [car?.make, car?.model].filter(Boolean).join(' ')],
+        ['Plate', plate],
+        ['Due', dueText(bookingInfo.return, bookingInfo.returnTimeSet)],
+      ].filter(([, v]) => v);
+      document.getElementById('outSummary').replaceChildren(...rows.map(([label, value]) => {
+        const row = document.createElement('div'); row.className = 'done-row';
+        const l = document.createElement('span'); l.className = 'dr-label'; l.textContent = label;
+        const v = document.createElement('span'); v.className = 'dr-value'; v.textContent = value;
+        row.append(l, v);
+        return row;
+      }));
+      document.getElementById('outError').textContent = '';
+      goTo('sOut');
+    }
+    // Back from extending: read the booking again, for the new due time.
+    async function refreshOut() {
+      const proof = customerSession && customerSession.proof;
+      if (!proof) { goTo('sFind'); return; }
+      try {
+        const found = await loadBooking(proof.code, proof.lastName);
+        if (found && found.booking) bookingInfo = found.booking;
+      } catch (e) { console.warn('booking refresh failed:', e); }
+      if (bookingInfo?.stage === 'out') showOut(); else goTo('sFind');
+    }
+    document.getElementById('outBack').addEventListener('click', () => goTo('sFind'));
+    document.getElementById('outReturnBtn').addEventListener('click', () => startReturn());
 
     // The code and last name as typed. From an app link with no last name on
     // the booking, the link's token stands in for both.
@@ -2349,7 +2428,7 @@
     }
 
     document.getElementById('carBack').addEventListener('click', () => {
-      if (carMode === 'return') { goTo('sFind'); return; }
+      if (carMode === 'return') { goTo('sOut'); return; }
       goTo(protectionShown() ? 'sProt' : 'sDriver');
     });
 
@@ -2436,7 +2515,7 @@
     // for, and checked the way it always was.
     async function startReturn() {
       const proof = customerSession.proof;
-      const btn = findBookingBtn;
+      const btn = document.getElementById('outReturnBtn');
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span>Finding your car…';
       let plate = null;
@@ -2446,7 +2525,7 @@
       } catch (e) { console.warn('lookup_rental_status failed:', e); }
       const done = plate && bookingInfo?.province ? await confirmVehicle(plate, bookingInfo.province, { quiet: true }) : false;
       btn.disabled = false;
-      btn.textContent = 'Start check-in';
+      btn.textContent = 'Return vehicle';
       if (done) return;
       await openCarScreen('return');
       if (plate) plateEl.value = normalizePlate(plate);
@@ -3630,7 +3709,7 @@
     // ════════════════════════════════════════════════════════════════════════
     // Screen 8: Return · Step 1 of 5 · Odometer
     // ════════════════════════════════════════════════════════════════════════
-    document.getElementById('s8Back').addEventListener('click', () => goTo('sFind'));
+    document.getElementById('s8Back').addEventListener('click', () => goTo('sOut'));
 
     // Live camera only; see openLiveCamera. Taking it again replaces it.
     document.getElementById('takeReturnOdoPhotoBtn').addEventListener('click', () => {
@@ -4632,7 +4711,19 @@
 
       el('extendBack').addEventListener('click', () => {
         if (extendToken && backTo === 'sFind') { history.replaceState(null, '', location.pathname + location.search); goTo('sFind'); openAppLink(extendToken); return; }
+        if (backTo === 'sOut') { refreshOut(); return; }
         goTo(backTo);
+      });
+
+      // Extend rental on Your rental: the rental is already found, by its
+      // code and last name or its app link.
+      el('outExtendBtn').addEventListener('click', () => {
+        const found = customerSession && customerSession.proof;
+        if (!found) { goTo('sFind'); return; }
+        backTo = 'sOut';
+        goTo('sExtend');
+        proof = { code: found.code, last: found.lastName || '' };
+        lookup();
       });
 
       if (extendToken !== null && cancelToken === null) {
