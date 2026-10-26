@@ -340,6 +340,8 @@
 
     /* ── Additional drivers ───────────────────────────────────── */
     .driver-card .protection-card__head { align-items: center; }
+    .consent-line { font-size: 13px; color: var(--muted); text-align: center; margin: 0 0 12px; }
+    .consent-line a { color: #F4845F; text-decoration: none; font-weight: inherit; }
     .field-hint { font-size: 0.9rem; color: var(--muted); text-align: center; margin: -4px 0 16px; }
 
 
@@ -972,6 +974,7 @@
         <p class="protection-card__wording" id="cancelDoneText"></p>
       </div>
       <div class="spacer"></div>
+      <p class="consent-line" id="findConsent">By continuing, you agree to fleetr's <a href="https://fleetr.ai/#/terms" target="_blank" rel="noopener">Terms of Use</a> and <a href="https://fleetr.ai/#/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
       <button class="btn btn-primary" id="findBookingBtn" type="button">Start check-in</button>
       <div class="text-links" id="findLinks">
         <button type="button" class="btn-manual-toggle" id="changePickupBtn">Change pickup time</button>
@@ -2184,6 +2187,7 @@
     // rules.
     function showFindActions(show) {
       findBookingBtn.hidden = !show;
+      document.getElementById('findConsent').hidden = !show;
       document.getElementById('findLinks').hidden = !show;
     }
     // Typing again after a cancel starts over.
