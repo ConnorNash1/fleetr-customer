@@ -7,10 +7,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="theme-color" content="#F9F9F7" />
   <title>fleetr vehicle inspection</title>
-  <link rel="icon" href="/favicon.ico" sizes="32x32" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <meta property="og:image" content="https://fleetr.ai/og-image.png">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
@@ -18,8 +18,8 @@
   <meta property="og:image:alt" content="fleetr">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://fleetr.ai/og-image.png">
-  <meta name="apple-mobile-web-app-title" content="fleetr ai" />
-  <link rel="manifest" href="/site.webmanifest" />
+  <meta name="apple-mobile-web-app-title" content="fleetr">
+  <link rel="manifest" href="/site.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap');
@@ -90,22 +90,13 @@
     .screen.active { display: flex; }
 
     /* ── Logo ─────────────────────────────────────────────────── */
+    /* The fleetr logo, the car and "fleetr" (fleetr-logo-terracotta-on-white.svg,
+       for the light page), 44px tall. The width keeps its 4042 by 700 shape. */
     .logo {
       display: block;
-      width: 150px;
-      margin: 0 auto 28px;
-    }
-    /* The fleetr wordmark (wordmark.svg, "fleetr" in Inter SemiBold as
-       outlines), drawn as a mask in terracotta on the light page, 44px tall.
-       The width follows the wordmark's shape. */
-    .wordmark {
-      display: block;
       height: 44px;
-      width: calc(44px * 3.1099);
+      width: calc(44px * 4042 / 700);
       margin: 0 auto 36px;
-      background-color: #F4845F;
-      -webkit-mask: url(/wordmark.svg) center / contain no-repeat;
-      mask: url(/wordmark.svg) center / contain no-repeat;
     }
 
     /* ── Typography ───────────────────────────────────────────── */
@@ -953,7 +944,7 @@
          from a personal app link (#a=), the link finds the booking instead.
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen active" id="sFind">
-      <span class="wordmark" role="img" aria-label="fleetr"></span>
+      <img class="logo" src="/fleetr-logo-terracotta-on-white.svg" alt="fleetr" />
       <label for="resCodeInput">Reservation code</label>
       <input type="text" id="resCodeInput" placeholder="ABC 123 456"
              autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
