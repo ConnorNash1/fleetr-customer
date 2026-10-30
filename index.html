@@ -1157,6 +1157,23 @@
     </div>
 
 
+    <div class="screen" id="sIns">
+      <button class="return-back-btn" id="sInsBack" type="button">Back</button>
+      <h1>Your insurance</h1>
+      <label for="insCompanyInput">Insurer name</label>
+      <input type="text" id="insCompanyInput" maxlength="100" autocomplete="off" autocapitalize="words" spellcheck="false" />
+      <div class="error-msg" id="insCompanyError"></div>
+      <label for="insPolicyInput">Policy number</label>
+      <input type="text" id="insPolicyInput" maxlength="60" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+      <input type="file" id="insPhotoInput" accept="image/*" capture="environment" hidden />
+      <button type="button" class="btn btn-secondary" id="insPhotoBtn">Photograph your insurance card</button>
+      <img id="insPhotoThumb" alt="Your insurance card" hidden style="display:block; width:100%; max-width:280px; margin:0 auto 16px; border-radius:12px;" />
+      <div class="error-msg" id="insPolicyError"></div>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="sInsNext" type="button">Continue</button>
+    </div>
+
+
     <!-- ═══════════════════════════════════════════════════════════
          Choose your car: the cars ready in the booked class, or the plate
     ═══════════════════════════════════════════════════════════ -->
@@ -1557,6 +1574,9 @@
     // the step is skipped. Answers are keyed by product id:
     // { accepted: true | false | null, acknowledged: boolean }.
     let protectionOffer   = null;
+    // Whether the branch asks for the renter's own insurance, and the card photo.
+    let insuranceRequired = false;
+    let insurancePhoto    = null;
     let protectionAnswers = {};
     // What complete_pickup recorded, for the Done screen.
     let protectionChoices = [];
@@ -1614,9 +1634,9 @@
     // ── Screen routing ────────────────────────────────────────────────────────
     // One task a screen, in order. Protection is counted only when something
     // is offered. sCar is in the return too, for when the plate is asked for.
-    const PICKUP_SCREENS = ['sFind','s1','sDriver','sProt','sCar','s2','s4','s6','s7'];
+    const PICKUP_SCREENS = ['sFind','s1','sDriver','sProt','sIns','sCar','s2','s4','s6','s7'];
     const RETURN_SCREENS = ['sFind','sOut','sCar','s8','s9','s9b','s10','s10b','s11'];
-    const ALL_SCREENS    = ['sFind','sOut','s1','sDriver','sProt','sCar','s2','s4','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel','sResched','sExtend'];
+    const ALL_SCREENS    = ['sFind','sOut','s1','sDriver','sProt','sIns','sCar','s2','s4','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel','sResched','sExtend'];
 
     // A field typed into on the screen being left keeps the focus, and the
     // iPhone keyboard with it, after its screen is hidden. iPhone Safari then
@@ -1634,7 +1654,7 @@
       document.getElementById(id).classList.add('active');
       const chain = flowType === 'return'
         ? RETURN_SCREENS
-        : PICKUP_SCREENS.filter(sc => sc !== 'sProt' || protectionShown());
+        : PICKUP_SCREENS.filter(sc => (sc !== 'sProt' || protectionShown()) && (sc !== 'sIns' || insuranceShown()));
       // Each screen fills its own step, so the first shows step 1 filled.
       const idx   = chain.indexOf(id);
       const pct   = idx < 0 ? 0 : Math.round(((idx + 1) / chain.length) * 100);
@@ -2068,6 +2088,7 @@
       protectionAnswers = {};
       protectionChoices = [];
       protectionFromContract = false;
+      resetInsurance();
       contractVehicle = null;
       clearLicenseForm();
       resetDrivers();
@@ -2428,7 +2449,7 @@
 
     document.getElementById('carBack').addEventListener('click', () => {
       if (carMode === 'return') { goTo('sOut'); return; }
-      goTo(protectionShown() ? 'sProt' : 'sDriver');
+      goTo(insuranceShown() ? 'sIns' : protectionShown() ? 'sProt' : 'sDriver');
     });
 
     // The car is checked, then the pickup or return goes on with it. quiet:
@@ -2786,6 +2807,7 @@
         if (!loaded) { err.textContent = 'Unable to connect. Please try again.'; return; }
       }
       protectionFromContract = false;
+      if (insuranceShown()) { goTo('sIns'); return; }
       if (protectionShown()) {
         renderProtection();
         goTo('sProt');
@@ -3108,15 +3130,69 @@
     }
 
     function protectionShown() {
-      return flowType === 'pickup' && !isSwitchPickup()
+      return flowType === 'pickup' && !isSwitchPickup() && !insuranceRequired
         && Array.isArray(protectionOffer) && protectionOffer.length > 0;
     }
+
+    // Where the branch asks renters to bring their own insurance, Your
+    // insurance takes the place of Protection. The details are saved once the
+    // rental is open (save_rental_insurance), the card photo with its photos.
+    const INSURANCE_ACK_LINE = 'I have my own auto insurance that covers this rental, and I am responsible for any damage to the vehicle.';
+    function insuranceShown() {
+      return flowType === 'pickup' && !isSwitchPickup() && insuranceRequired;
+    }
+
+    // Insurer name, plus the policy number or the photo. Which field to mark.
+    function insuranceProblem({ company, policy, hasPhoto }) {
+      if (!String(company || '').trim()) return { field: 'company', text: 'Enter your insurer\'s name.' };
+      if (!String(policy || '').trim() && !hasPhoto) return { field: 'policy', text: 'Enter your policy number or photograph your insurance card.' };
+      return null;
+    }
+
+    function resetInsurance() {
+      insuranceRequired = false;
+      insurancePhoto = null;
+      document.getElementById('insCompanyInput').value = '';
+      document.getElementById('insPolicyInput').value = '';
+      document.getElementById('insCompanyError').textContent = '';
+      document.getElementById('insPolicyError').textContent = '';
+      const thumb = document.getElementById('insPhotoThumb');
+      if (thumb.src.startsWith('blob:')) URL.revokeObjectURL(thumb.src);
+      thumb.removeAttribute('src');
+      thumb.hidden = true;
+    }
+
+    document.getElementById('insPhotoBtn').addEventListener('click', () => document.getElementById('insPhotoInput').click());
+    document.getElementById('insPhotoInput').addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      insurancePhoto = file;
+      const thumb = document.getElementById('insPhotoThumb');
+      if (thumb.src.startsWith('blob:')) URL.revokeObjectURL(thumb.src);
+      thumb.src = URL.createObjectURL(file);
+      thumb.hidden = false;
+      document.getElementById('insPolicyError').textContent = '';
+    });
+    document.getElementById('sInsBack').addEventListener('click', () => goTo('sDriver'));
+    document.getElementById('sInsNext').addEventListener('click', () => {
+      const problem = insuranceProblem({
+        company: document.getElementById('insCompanyInput').value,
+        policy: document.getElementById('insPolicyInput').value,
+        hasPhoto: !!insurancePhoto,
+      });
+      document.getElementById('insCompanyError').textContent = problem?.field === 'company' ? problem.text : '';
+      document.getElementById('insPolicyError').textContent = problem?.field === 'policy' ? problem.text : '';
+      if (problem) return;
+      if (protectionFromContract && vehicle) { openContract(); return; }
+      openCarScreen('pickup');
+    });
 
     // Reads the offer. Returns false when it could not be read. Answers for a
     // product still on offer are kept, so a reload after the offer changed
     // only asks about what is new.
     async function loadProtectionOffer() {
-      if (isSwitchPickup()) { protectionOffer = []; return true; }
+      if (isSwitchPickup()) { protectionOffer = []; insuranceRequired = false; return true; }
       const proof = customerSession?.proof;
       if (!proof) { protectionOffer = null; return false; }
       const { data, error } = await supabase.rpc('lookup_protection_offer', {
@@ -3128,6 +3204,10 @@
         return false;
       }
       protectionOffer = data;
+      // Read alongside the offer. Could not be read means not asked for: the
+      // offer is what the database will hold the pickup to either way.
+      const needs = await supabase.rpc('lookup_insurance_required', { code: proof.code, last_name: proof.lastName });
+      insuranceRequired = needs.data === true;
       // A coverage accepted when booking on fleetr.ai starts accepted, at its
       // booked price. Nothing else starts chosen: the booking records only
       // what was accepted, so bookedChoice false is not a decline the renter
@@ -3380,6 +3460,7 @@
 
       summary.appendChild(card('Coverages', vehicle?.switchPickup
         ? [['Coverages', 'As on your rental agreement']]
+        : insuranceShown() ? [['Coverages', 'Your own insurance']]
         : coverages.length
           ? coverages.map(c => [c.name, c.accepted ? `${money(c.price)} per day` : 'Declined'])
           : [['Coverages', 'None offered']]));
@@ -3427,7 +3508,7 @@
         : null;
       const d = el('details', 'protection-card terms-card');
       d.appendChild(el('summary', 'protection-card__name', 'Rental agreement'));
-      [fuelAckLine(), declinedLine, ...String(ack?.body || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean)]
+      [fuelAckLine(), insuranceShown() ? INSURANCE_ACK_LINE : null, declinedLine, ...String(ack?.body || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean)]
         .filter(Boolean)
         .forEach(line => d.appendChild(el('p', 'protection-card__wording', line)));
       acks.appendChild(d);
@@ -3544,8 +3625,10 @@
       const stamp = Date.now();
       let uploaded = 0;
       const failed = [];
+      const paths = {};
       for (const [i, item] of items.entries()) {
         const path = `${photoPath}${item.name}-${stamp}-${i + 1}.jpg`;
+        paths[item.name] = path;
         let error = null;
         for (let attempt = 0; attempt < 2; attempt++) {
           ({ error } = await supabase.storage.from('damage-photos')
@@ -3556,7 +3639,24 @@
         else uploaded++;
       }
       console.log('photo upload:', { photoPath, uploaded, failed: failed.length });
-      return { uploaded, failed };
+      return { uploaded, failed, paths };
+    }
+
+    // The insurer, policy number and card photo, on the rental just opened.
+    // Tried twice. A failure shows on the done screen, for staff to check.
+    async function saveInsurance(rentalAgreementId, code, photoPath) {
+      const args = {
+        rental_agreement_id: rentalAgreementId, code,
+        company: document.getElementById('insCompanyInput').value.trim(),
+        policy: document.getElementById('insPolicyInput').value.trim(),
+        photo_path: photoPath || null,
+      };
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { data, error } = await supabase.rpc('save_rental_insurance', args);
+        if (!error && data?.ok) return true;
+        console.warn('save_rental_insurance failed:', error || data);
+      }
+      return false;
     }
 
     // Tells the customer on the done screen when photos did not make it, so
@@ -3659,10 +3759,14 @@
       protectionChoices = Array.isArray(result.protectionChoices) ? result.protectionChoices : [];
       pickupReadings = { odometer: result.startOdometer ?? null, fuelLevel: result.startFuelLevel ?? null };
 
+      const insurance = insuranceShown();
       const upload = await uploadAgreementPhotos(result.photoPath, [
         ...photos.map(file => ({ name: 'pickup-damage', file })),
+        ...(insurance && insurancePhoto ? [{ name: 'insurance-card', file: insurancePhoto }] : []),
       ]);
-      return { ok: true, photosFailed: upload.failed.length };
+      let notSaved = 0;
+      if (insurance && !await saveInsurance(result.rentalAgreementId, proof.code, upload.paths['insurance-card'])) notSaved = 1;
+      return { ok: true, photosFailed: upload.failed.length + notSaved };
     }
 
     // ════════════════════════════════════════════════════════════════════════
