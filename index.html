@@ -1334,7 +1334,7 @@
       <div class="fuel-value" id="returnFuelValueLabel">Full</div>
       <input type="range" id="returnFuelRange" min="0" max="8" value="8" step="1" />
       <div class="fuel-labels">
-        <span>Empty</span><span>¼</span><span>½</span><span>¾</span><span>Full</span>
+        <span>Empty</span><span>1/4</span><span>1/2</span><span>3/4</span><span>Full</span>
       </div>
 
       <div class="optional-badge">Optional</div>
@@ -1592,6 +1592,9 @@
     let returnVehicleLocation    = '';
 
     const FUEL_LABELS = ['Empty', '⅛', '¼', '⅜', '½', '⅝', '¾', '⅞', 'Full'];
+    // How a level reads on screen. The labels above are what the database keeps.
+    const FUEL_FRACTIONS = { '⅛': '1/8', '¼': '1/4', '⅜': '3/8', '½': '1/2', '⅝': '5/8', '¾': '3/4', '⅞': '7/8' };
+    const fuelText = (v) => (v == null ? v : String(v).replace(/[⅛¼⅜½⅝¾⅞]/g, (c) => FUEL_FRACTIONS[c]));
 
     // ── Company units ─────────────────────────────────────────────────────────
     // The company's distance unit, returned by lookup_reservation with the
@@ -2495,7 +2498,7 @@
         document.getElementById('returnOdoPreview').src            = '';
         const rfr = document.getElementById('returnFuelRange');
         rfr.value = '8';
-        document.getElementById('returnFuelValueLabel').textContent    = FUEL_LABELS[8];
+        document.getElementById('returnFuelValueLabel').textContent    = fuelText(FUEL_LABELS[8]);
         document.getElementById('returnFuelPreview').style.display     = 'none';
         document.getElementById('returnFuelPreview').src               = '';
         document.getElementById('damageFields').style.display          = 'none';
@@ -3449,7 +3452,7 @@
         ['Plate', v.plate],
         ['Plate province or state', v.province],
         ['Odometer', formatOdometer(contractVehicle?.startOdometer) || 'Not on record'],
-        ['Fuel level', contractVehicle?.startFuelLevel || 'Not on record'],
+        ['Fuel level', fuelText(contractVehicle?.startFuelLevel) || 'Not on record'],
       ]));
 
       summary.appendChild(card('Rental', [
@@ -3789,7 +3792,7 @@
         ['Plate',    v.plate],
         ['Pickup',   pickupStr],
         formatOdometer(pickupReadings.odometer) ? ['Odometer', formatOdometer(pickupReadings.odometer)] : null,
-        pickupReadings.fuelLevel ? ['Fuel', pickupReadings.fuelLevel] : null,
+        pickupReadings.fuelLevel ? ['Fuel', fuelText(pickupReadings.fuelLevel)] : null,
         // The protection the customer accepted, as complete_pickup recorded
         // it. Left out when nothing was offered. Escaped, since product names
         // are written by the company's staff and this row is HTML.
@@ -3859,7 +3862,7 @@
     lockSliderDrag(returnFuelRange);
     returnFuelRange.addEventListener('input', () => {
       returnFuelLevel = parseInt(returnFuelRange.value);
-      returnFuelLabel.textContent = FUEL_LABELS[returnFuelLevel];
+      returnFuelLabel.textContent = fuelText(FUEL_LABELS[returnFuelLevel]);
     });
 
     // Live camera only; see openLiveCamera. Taking it again replaces it.
