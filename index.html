@@ -3157,6 +3157,17 @@
       return Number.isFinite(n) ? `$${n.toFixed(2)} per day` : '';
     };
 
+    // What the renter pays for damage with a product, or '' when the company
+    // has not said. Comprehensive is set only when it differs.
+    const damageMoney = (n) => `$${Number.isInteger(Number(n)) ? Number(n) : Number(n).toFixed(2)}`;
+    function damageLine(p) {
+      const a = p.renterPays, b = p.renterPaysComprehensive;
+      if (a == null && b == null) return '';
+      if (b == null) return `With ${p.name}, you pay up to ${damageMoney(a)} for damage.`;
+      if (a == null) return `With ${p.name}, you pay up to ${damageMoney(b)} for comprehensive damage.`;
+      return `With ${p.name}, you pay up to ${damageMoney(a)} for collision damage and ${damageMoney(b)} for comprehensive damage.`;
+    }
+
     // Built with text nodes, never HTML: the wording is written by the
     // company's staff and is shown here exactly as typed.
     function renderProtection() {
@@ -3178,6 +3189,7 @@
         head.appendChild(el('span', 'protection-card__price', formatPerDay(p.pricePerDay)));
         card.appendChild(head);
         if (p.wording) card.appendChild(el('p', 'protection-card__wording', p.wording));
+        if (damageLine(p)) card.appendChild(el('p', 'protection-card__wording', damageLine(p)));
 
         if (p.required) {
           card.appendChild(el('div', 'protection-card__included', 'Included with your rental'));
@@ -3328,7 +3340,7 @@
 
       const drivers = [readDriver('main'), ...extraDrivers];
       const coverages = vehicle?.switchPickup ? [] : (protectionOffer || []).map(p => ({
-        name: p.name, price: Number(p.pricePerDay) || 0,
+        name: p.name, price: Number(p.pricePerDay) || 0, damage: damageLine(p),
         accepted: p.required || protectionAnswers[String(p.productId)]?.accepted === true,
       }));
 
@@ -3372,11 +3384,8 @@
           ? coverages.map(c => [c.name, c.accepted ? `${money(c.price)} per day` : 'Declined'])
           : [['Coverages', 'None offered']]));
 
-      const ded = terms.deductibles || {};
-      summary.appendChild(card('Deductibles', [
-        ['Collision', ded.collision != null ? money(ded.collision) : 'Not set'],
-        ['Comprehensive', ded.comprehensive != null ? money(ded.comprehensive) : 'Not set'],
-      ]));
+      const damage = coverages.filter(c => c.accepted && c.damage);
+      if (damage.length) summary.appendChild(card('What you pay for damage', damage.map(c => [c.name, c.damage])));
 
       // Charges in groups, a thin line between each: the rental's lines (with
       // "You save" against the normal daily rate), the additional charges,
