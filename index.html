@@ -3240,16 +3240,11 @@
       return Number.isFinite(n) ? `$${n.toFixed(2)} per day` : '';
     };
 
-    // What the renter pays for damage with a product, or '' when the company
-    // has not said. Comprehensive is set only when it differs.
-    const damageMoney = (n) => `$${Number.isInteger(Number(n)) ? Number(n) : Number(n).toFixed(2)}`;
-    function damageLine(p) {
-      const a = p.renterPays, b = p.renterPaysComprehensive;
-      if (a == null && b == null) return '';
-      if (b == null) return `With ${p.name}, you pay up to ${damageMoney(a)} for damage.`;
-      if (a == null) return `With ${p.name}, you pay up to ${damageMoney(b)} for comprehensive damage.`;
-      return `With ${p.name}, you pay up to ${damageMoney(a)} for collision damage and ${damageMoney(b)} for comprehensive damage.`;
-    }
+    // The same for every company: $0 with damage protection, the full cost
+    // without it. Products have no type, so a damage one is known by its name.
+    const isDamageProtection = (p) => /damage|collision|\b(?:cdw|ldw)\b|loss waiver/i.test(p.name || '');
+    const DAMAGE_COVERED = 'You pay $0 for damage.';
+    const DAMAGE_DECLINED = "You're responsible for the full cost of any damage. Your own insurance or credit card may cover it.";
 
     // Built with text nodes, never HTML: the wording is written by the
     // company's staff and is shown here exactly as typed.
@@ -3272,7 +3267,7 @@
         head.appendChild(el('span', 'protection-card__price', formatPerDay(p.pricePerDay)));
         card.appendChild(head);
         if (p.wording) card.appendChild(el('p', 'protection-card__wording', p.wording));
-        if (damageLine(p)) card.appendChild(el('p', 'protection-card__wording', damageLine(p)));
+        if (isDamageProtection(p)) card.appendChild(el('p', 'protection-card__wording', DAMAGE_COVERED));
 
         if (p.required) {
           card.appendChild(el('div', 'protection-card__included', 'Included with your rental'));
@@ -3294,6 +3289,7 @@
           choices.appendChild(accept);
           choices.appendChild(decline);
           card.appendChild(choices);
+          if (a.accepted === false && isDamageProtection(p)) card.appendChild(el('p', 'protection-card__wording', DAMAGE_DECLINED));
         }
         list.appendChild(card);
       });
@@ -3334,9 +3330,8 @@
     // Everything the customer is agreeing to, then the company's
     // acknowledgements, then the signature. Built with text nodes only, since
     // names, addresses and the acknowledgements come from customer records and
-    // company staff. The charges are an estimate for the booked days; the
-    // database works out and records the deductibles itself, and the final
-    // bill is settled at return. Another driver is never charged for.
+    // company staff. The charges are an estimate for the booked days, and the
+    // final bill is settled at return. Another driver is never charged for.
     // { vehicleId, vin, startOdometer, startFuelLevel } once read. The
     // starting readings are the vehicle's last recorded ones, from
     // lookup_vehicle_contract (fleetr-infra, pickup_readings.sql), shown
@@ -3739,7 +3734,6 @@
         signature:   canvas.toDataURL('image/png'),
         photo_count: photos.length,
         // The drivers and the acknowledgements version this contract shows.
-        // The deductibles are worked out by the database, not sent.
         drivers:            [readDriver('main'), ...extraDrivers],
         acknowledgement_id: contractTerms().acknowledgements?.id || null,
       };
