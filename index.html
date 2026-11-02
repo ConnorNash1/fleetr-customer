@@ -546,6 +546,53 @@
       cursor: pointer;
     }
 
+    .photo-lightbox-remove {
+      position: absolute;
+      bottom: 24px; left: 50%;
+      transform: translateX(-50%);
+      padding: 11px 24px;
+      border: none;
+      border-radius: 999px;
+      background: var(--paper);
+      color: #c0392b;
+      font-family: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* ── Damage, photo first ──────────────────────────────────── */
+    /* One section that folds, a count beside its title, a grid of photos
+       and + Add photo as the last square. A note under a photo is optional. */
+    .damage-section { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); margin-bottom: 20px; }
+    .damage-section__head {
+      width: 100%; display: flex; align-items: center; gap: 8px; padding: 14px 16px;
+      background: none; border: none; font-family: inherit; font-size: 1rem; color: var(--ink); text-align: left; cursor: pointer;
+    }
+    .damage-section__title { font-weight: 600; }
+    .damage-section__count {
+      min-width: 22px; padding: 1px 8px; border-radius: 999px; background: var(--line);
+      font-size: 0.78rem; font-weight: 600; text-align: center;
+    }
+    .damage-section__chevron { margin-left: auto; color: var(--muted); }
+    .damage-section__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 0 16px 16px; }
+    .damage-section__item { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .damage-section__thumb, .damage-section__add {
+      aspect-ratio: 1; width: 100%; border-radius: 10px; overflow: hidden; padding: 0; cursor: pointer;
+    }
+    .damage-section__thumb { border: 1px solid var(--line); background: var(--paper); }
+    .damage-section__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .damage-section__add {
+      border: 1px dashed var(--muted); background: var(--paper); font-family: inherit;
+      font-size: 0.85rem; font-weight: 600; color: var(--terra-text);
+    }
+    .damage-section__note, .damage-section__add-note {
+      background: none; border: none; padding: 0; font-family: inherit; font-size: 0.78rem;
+      text-align: left; cursor: pointer; overflow-wrap: anywhere;
+    }
+    .damage-section__add-note { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+    .damage-section__note { color: var(--ink); }
+    .damage-section__note-box { width: 100%; font-family: inherit; font-size: 0.8rem; padding: 6px 8px; border-radius: 8px; }
+
     /* ── License scan modal ──────────────────────────────────── */
     .scan-modal {
       display: none;
@@ -1145,16 +1192,14 @@
 
 
     <!-- ═══════════════════════════════════════════════════════════
-         Screen 4: Photos of Concern
+         Screen 4: Existing damage
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="s4">
       <button class="return-back-btn" id="s4Back">Back</button>
       <h1>Inspection photos</h1>
       <div class="optional-badge">Optional</div>
 
-      <div class="photo-grid" id="photoGrid"></div>
-
-      <button class="btn btn-secondary" id="addPhotoBtn">Add photos</button>
+      <div id="pickupDamage"></div>
 
       <div class="spacer"></div>
       <div class="error-msg" id="s4Error"></div>
@@ -1388,24 +1433,13 @@
     <div class="screen" id="s10">
       <button class="return-back-btn" id="s10Back">Back</button>
       <h1>New damage?</h1>
+      <p class="subtitle">Photograph any damage that wasn't there at pickup. No photos means no new damage.</p>
 
-      <div class="damage-choice" id="damageChoice">
-        <button class="btn btn-primary"  id="damageNoBtn">No new damage</button>
-        <button class="btn btn-danger"   id="damageYesBtn">Yes, report damage</button>
-      </div>
-
-      <div id="damageFields" style="display:none">
-        <label>Photos <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-        <div class="photo-grid" id="returnPhotoGrid"></div>
-        <button class="btn btn-secondary" id="addReturnPhotoBtn" style="margin-bottom:22px">📷 &nbsp;Add photos</button>
-
-        <label for="returnDamageDesc">Description</label>
-        <textarea id="returnDamageDesc" class="return-textarea" placeholder="Describe the damage…" rows="4"></textarea>
-      </div>
+      <div id="returnDamage"></div>
 
       <div class="spacer"></div>
       <div class="error-msg" id="s10Error"></div>
-      <button class="btn btn-primary" id="s10Submit" style="display:none">Submit return</button>
+      <button class="btn btn-primary" id="s10Submit">Continue</button>
     </div>
 
 
@@ -1526,6 +1560,7 @@
   <div class="photo-lightbox" id="photoLightbox">
     <button class="photo-lightbox-close" id="photoLightboxClose">&#x2715;</button>
     <img id="photoLightboxImg" src="" alt="Photo" />
+    <button class="photo-lightbox-remove" id="photoLightboxRemove" hidden>Remove</button>
   </div>
 
   <!-- Live camera for every photo in the app. See openLiveCamera. -->
@@ -2105,9 +2140,7 @@
       applyDistanceUnitLabels();
       vehicle = null;
       flowType = 'pickup';
-      photoObjectUrls.forEach(url => URL.revokeObjectURL(url));
-      photos = [];
-      renderPhotoGrid();
+      pickupDamage.reset();
       protectionOffer = null;
       protectionAnswers = {};
       protectionChoices = [];
@@ -2509,10 +2542,9 @@
         returnOdoPhoto          = null;
         returnFuelPhoto         = null;
         returnHasDamage         = false;
-        returnDamagePhotos      = [];
         returnDamageDescription = '';
         returnVehicleLocation   = '';
-        returnPhotoObjectUrls   = [];
+        returnDamage.reset();
         // Reset return screen UI
         document.getElementById('returnMileageInput').value    = '';
         document.getElementById('returnOdoPreview').style.display  = 'none';
@@ -2522,11 +2554,6 @@
         document.getElementById('returnFuelValueLabel').textContent    = fuelText(FUEL_LABELS[8]);
         document.getElementById('returnFuelPreview').style.display     = 'none';
         document.getElementById('returnFuelPreview').src               = '';
-        document.getElementById('damageFields').style.display          = 'none';
-        document.getElementById('s10Submit').style.display             = 'none';
-        document.getElementById('damageChoice').style.display          = '';
-        document.getElementById('returnDamageDesc').value              = '';
-        document.getElementById('returnPhotoGrid').innerHTML            = '';
         document.getElementById('s10Error').textContent                = '';
         document.getElementById('vehicleLocationInput').value          = '';
         document.getElementById('s10bError').textContent               = '';
@@ -3052,49 +3079,145 @@
     });
 
     // ════════════════════════════════════════════════════════════════════════
-    // Screen 4: Photos of Concern
+    // Photo lightbox
     // ════════════════════════════════════════════════════════════════════════
-    const photoGrid  = document.getElementById('photoGrid');
+    // Lightbox. onRemove, when given, shows Remove under the photo.
+    const lightbox       = document.getElementById('photoLightbox');
+    const lightboxImg    = document.getElementById('photoLightboxImg');
+    const lightboxClose  = document.getElementById('photoLightboxClose');
+    const lightboxRemove = document.getElementById('photoLightboxRemove');
+    let lightboxOnRemove = null;
 
-    // Live camera only; see openLiveCamera. Several photos per visit.
-    document.getElementById('addPhotoBtn').addEventListener('click', () => {
-      openLiveCamera({
-        title: 'Inspection photos',
-        multiple: true,
-        onPhoto: file => { photos = [...photos, file]; renderPhotoGrid(); },
-      });
-    });
-
-    // Lightbox
-    const lightbox      = document.getElementById('photoLightbox');
-    const lightboxImg   = document.getElementById('photoLightboxImg');
-    const lightboxClose = document.getElementById('photoLightboxClose');
-
-    function openLightbox(objectUrl) {
+    function openLightbox(objectUrl, onRemove) {
       lightboxImg.src = objectUrl;
+      lightboxOnRemove = onRemove || null;
+      lightboxRemove.hidden = !lightboxOnRemove;
       lightbox.classList.add('open');
     }
     function closeLightbox() {
       lightbox.classList.remove('open');
       lightboxImg.src = '';
+      lightboxOnRemove = null;
     }
     lightboxClose.addEventListener('click', closeLightbox);
+    lightboxRemove.addEventListener('click', () => { const fn = lightboxOnRemove; closeLightbox(); if (fn) fn(); });
     lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox(); });
 
-    // Keep object URLs so they can be reopened after initial creation
-    let photoObjectUrls = [];
-
-    function renderPhotoGrid() {
-      photoGrid.innerHTML = '';
-      photoObjectUrls = photos.map(f => URL.createObjectURL(f));
-      photoObjectUrls.forEach((url, i) => {
-        const btn = document.createElement('button');
-        btn.className = 'photo-link';
-        btn.textContent = `View photo ${i + 1}`;
-        btn.addEventListener('click', () => openLightbox(url));
-        photoGrid.appendChild(btn);
-      });
+    // ════════════════════════════════════════════════════════════════════════
+    // Damage, photo first
+    // ════════════════════════════════════════════════════════════════════════
+    // One section that folds, titled Existing damage at pickup and New damage
+    // at return, with the number of photos beside the title, a grid of photos
+    // and + Add photo as the last square. + Add photo opens the live camera
+    // for as many photos in a row as needed. A photo opens full size with
+    // Remove; a note under it is optional, never required.
+    //
+    // damageSection(root, title, onChange) draws it into root and keeps its
+    // photos, [{ file, url, note }]: .photos reads them, .reset() empties it.
+    function damageSection(root, title, onChange) {
+      let photos = [];
+      let open = false;
+      let noting = -1;
+      const changed = () => { if (onChange) onChange(photos); };
+      const remove = (i) => {
+        URL.revokeObjectURL(photos[i].url);
+        photos = photos.filter((_, j) => j !== i);
+        noting = -1;
+        draw(); changed();
+      };
+      function draw() {
+        root.innerHTML = '';
+        const box = document.createElement('div');
+        box.className = 'damage-section';
+        const head = document.createElement('button');
+        head.type = 'button';
+        head.className = 'damage-section__head';
+        head.setAttribute('aria-expanded', String(open));
+        const t = document.createElement('span');
+        t.className = 'damage-section__title';
+        t.textContent = title;
+        head.appendChild(t);
+        if (photos.length) {
+          const n = document.createElement('span');
+          n.className = 'damage-section__count';
+          n.textContent = String(photos.length);
+          n.setAttribute('aria-label', `${photos.length} photo${photos.length === 1 ? '' : 's'}`);
+          head.appendChild(n);
+        }
+        const c = document.createElement('span');
+        c.className = 'damage-section__chevron';
+        c.setAttribute('aria-hidden', 'true');
+        c.textContent = open ? '\u25be' : '\u25b8';
+        head.appendChild(c);
+        head.addEventListener('click', () => { open = !open; draw(); });
+        box.appendChild(head);
+        if (open) {
+          const grid = document.createElement('div');
+          grid.className = 'damage-section__grid';
+          photos.forEach((p, i) => {
+            const item = document.createElement('div');
+            item.className = 'damage-section__item';
+            const thumb = document.createElement('button');
+            thumb.type = 'button';
+            thumb.className = 'damage-section__thumb';
+            thumb.setAttribute('aria-label', `View photo ${i + 1} full size`);
+            const img = document.createElement('img');
+            img.src = p.url;
+            img.alt = `Damage photo ${i + 1}`;
+            thumb.appendChild(img);
+            thumb.addEventListener('click', () => openLightbox(p.url, () => remove(i)));
+            item.appendChild(thumb);
+            if (noting === i) {
+              const box2 = document.createElement('textarea');
+              box2.className = 'damage-section__note-box';
+              box2.rows = 2;
+              box2.maxLength = 300;
+              box2.placeholder = 'Where it is, what it is';
+              box2.setAttribute('aria-label', `Note for photo ${i + 1}`);
+              box2.value = p.note;
+              box2.addEventListener('input', () => { p.note = box2.value; changed(); });
+              box2.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); box2.blur(); } });
+              box2.addEventListener('blur', () => { noting = -1; draw(); });
+              item.appendChild(box2);
+              setTimeout(() => box2.focus(), 0);
+            } else {
+              const note = document.createElement('button');
+              note.type = 'button';
+              note.className = p.note.trim() ? 'damage-section__note' : 'damage-section__add-note';
+              note.textContent = p.note.trim() || 'Add note';
+              note.addEventListener('click', () => { noting = i; draw(); });
+              item.appendChild(note);
+            }
+            grid.appendChild(item);
+          });
+          const add = document.createElement('button');
+          add.type = 'button';
+          add.className = 'damage-section__add';
+          add.textContent = '+ Add photo';
+          // Live camera only; see openLiveCamera. Several photos per visit.
+          add.addEventListener('click', () => openLiveCamera({
+            title, multiple: true,
+            onPhoto: file => { photos = [...photos, { file, url: URL.createObjectURL(file), note: '' }]; draw(); changed(); },
+          }));
+          grid.appendChild(add);
+          box.appendChild(grid);
+        }
+        root.appendChild(box);
+      }
+      draw();
+      return {
+        get photos() { return photos; },
+        reset() { photos.forEach(p => URL.revokeObjectURL(p.url)); photos = []; open = false; noting = -1; draw(); changed(); },
+      };
     }
+
+    // The photos' notes, as one description: none is null.
+    const damageNotes = (list) => list.map(p => p.note.trim()).filter(Boolean).join('; ') || null;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Screen 4: Existing damage at pickup
+    // ════════════════════════════════════════════════════════════════════════
+    const pickupDamage = damageSection(document.getElementById('pickupDamage'), 'Existing damage', list => { photos = list; });
 
 
     // A fuel slider driven by the finger directly. iPhone Safari does not
@@ -3645,6 +3768,7 @@
       let uploaded = 0;
       const failed = [];
       const paths = {};
+      const saved = [];
       for (const [i, item] of items.entries()) {
         const path = `${photoPath}${item.name}-${stamp}-${i + 1}.jpg`;
         paths[item.name] = path;
@@ -3655,10 +3779,23 @@
           if (!error) break;
         }
         if (error) { failed.push(path); console.warn('photo upload FAILED:', path, error); }
-        else uploaded++;
+        else { uploaded++; saved.push({ path, note: item.note || '' }); }
       }
       console.log('photo upload:', { photoPath, uploaded, failed: failed.length });
-      return { uploaded, failed, paths };
+      return { uploaded, failed, paths, saved };
+    }
+
+    // The notes on damage photos just uploaded (save_photo_notes), for staff
+    // to read beside each photo. Tried twice; a note that does not save leaves
+    // the photo, which is what matters.
+    async function savePhotoNotes(rentalAgreementId, code, saved) {
+      const notes = (saved || []).filter(x => x.note && x.note.trim()).map(x => ({ path: x.path, note: x.note.trim() }));
+      if (!notes.length || !rentalAgreementId) return;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { data, error } = await supabase.rpc('save_photo_notes', { rental_agreement_id: rentalAgreementId, code, notes });
+        if (!error && data?.ok) return;
+        console.warn('save_photo_notes failed:', error || data);
+      }
     }
 
     // The insurer, policy number and card photo, on the rental just opened.
@@ -3779,9 +3916,10 @@
 
       const insurance = insuranceShown();
       const upload = await uploadAgreementPhotos(result.photoPath, [
-        ...photos.map(file => ({ name: 'pickup-damage', file })),
+        ...photos.map(p => ({ name: 'pickup-damage', file: p.file, note: p.note })),
         ...(insurance && insurancePhoto ? [{ name: 'insurance-card', file: insurancePhoto }] : []),
       ]);
+      await savePhotoNotes(result.rentalAgreementId, proof.code, upload.saved);
       let notSaved = 0;
       if (insurance && !await saveInsurance(result.rentalAgreementId, proof.code, upload.paths['insurance-card'])) notSaved = 1;
       return { ok: true, photosFailed: upload.failed.length + notSaved };
@@ -3919,12 +4057,7 @@
 
     document.getElementById('s9bBack').addEventListener('click', () => goTo('s9'));
     document.getElementById('s9bNext').addEventListener('click', () => {
-      // Reset damage choice state when (re-)entering s10
-      returnHasDamage = false;
-      document.getElementById('damageFields').style.display = 'none';
-      document.getElementById('s10Submit').style.display    = 'none';
-      document.getElementById('damageChoice').style.display = '';
-      document.getElementById('s10Error').textContent       = '';
+      document.getElementById('s10Error').textContent = '';
       goTo('s10');
     });
 
@@ -3933,51 +4066,13 @@
     // ════════════════════════════════════════════════════════════════════════
     document.getElementById('s10Back').addEventListener('click', () => goTo('s9b'));
 
-    document.getElementById('damageNoBtn').addEventListener('click', () => {
-      returnHasDamage         = false;
-      returnDamagePhotos      = [];
-      returnDamageDescription = '';
-      document.getElementById('s10Error').textContent = '';
-      goTo('s10b');
-    });
-
-    document.getElementById('damageYesBtn').addEventListener('click', () => {
-      returnHasDamage = true;
-      document.getElementById('damageFields').style.display = 'block';
-      document.getElementById('s10Submit').style.display    = 'block';
-      document.getElementById('damageChoice').style.display = 'none';
-      document.getElementById('s10Error').textContent       = '';
-    });
-
-    // Return damage photos: live camera only; see openLiveCamera.
-    let returnPhotoObjectUrls = [];
-    const returnPhotoGrid        = document.getElementById('returnPhotoGrid');
-
-    document.getElementById('addReturnPhotoBtn').addEventListener('click', () => {
-      openLiveCamera({
-        title: 'Damage photos',
-        multiple: true,
-        onPhoto: file => {
-          returnDamagePhotos = [...returnDamagePhotos, file];
-          returnPhotoObjectUrls = returnDamagePhotos.map(f => URL.createObjectURL(f));
-          returnPhotoGrid.innerHTML = '';
-          returnPhotoObjectUrls.forEach((url, i) => {
-            const btn = document.createElement('button');
-            btn.className   = 'photo-link';
-            btn.textContent = `View photo ${i + 1}`;
-            btn.addEventListener('click', () => openLightbox(url));
-            returnPhotoGrid.appendChild(btn);
-          });
-        },
-      });
-    });
+    // New damage, photo first: no photos is no new damage, and a note is
+    // optional. The photos stay if the customer comes back to this screen.
+    const returnDamage = damageSection(document.getElementById('returnDamage'), 'New damage', list => { returnDamagePhotos = list; });
 
     document.getElementById('s10Submit').addEventListener('click', () => {
-      returnDamageDescription = document.getElementById('returnDamageDesc').value.trim();
-      if (!returnDamageDescription) {
-        document.getElementById('s10Error').textContent = 'Please describe the damage before submitting.';
-        return;
-      }
+      returnHasDamage         = returnDamagePhotos.length > 0;
+      returnDamageDescription = returnHasDamage ? damageNotes(returnDamagePhotos) : '';
       document.getElementById('s10Error').textContent = '';
       goTo('s10b');
     });
@@ -4022,7 +4117,7 @@
         odometer:           returnMileage ? odometerToKm(returnMileage) : null,
         fuel_level:         FUEL_LABELS[returnFuelLevel] || 'Full',
         has_damage:         returnHasDamage,
-        damage_description: returnHasDamage ? returnDamageDescription : null,
+        damage_description: returnHasDamage ? (returnDamageDescription || null) : null,
         vehicle_location:   returnVehicleLocation || null,
         signature:          null,
         odo_photo_count:    returnOdoPhoto  ? 1 : 0,
@@ -4054,8 +4149,9 @@
       const upload = await uploadAgreementPhotos(result.photoPath, [
         ...(returnOdoPhoto  ? [{ name: 'return-odometer', file: returnOdoPhoto }]  : []),
         ...(returnFuelPhoto ? [{ name: 'return-fuel',     file: returnFuelPhoto }] : []),
-        ...(returnHasDamage ? returnDamagePhotos.map(file => ({ name: 'return-damage', file })) : []),
+        ...(returnHasDamage ? returnDamagePhotos.map(p => ({ name: 'return-damage', file: p.file, note: p.note })) : []),
       ]);
+      await savePhotoNotes(result.rentalAgreementId, proof.code, upload.saved);
       showPhotoUploadWarning('s11PhotoWarning', upload.failed.length);
 
       locBtn.disabled = false;
