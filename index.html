@@ -385,6 +385,11 @@
       flex-shrink: 0;
       margin-top: 7px;
     }
+    .damage-item { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+    .damage-item__when { margin-top: 2px; font-size: 0.82rem; color: var(--body); }
+    .damage-item__photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; margin-top: 10px; }
+    .damage-item__photos a { display: block; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--line); }
+    .damage-item__photos img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .no-damage {
       text-align: center;
       color: var(--body);
@@ -2882,15 +2887,82 @@
       const noDamageMsg = document.getElementById('noDamageMsg');
       const damage      = Array.isArray(v.damage) ? v.damage : [];
 
-      if (damage.length === 0) {
-        damageList.innerHTML     = '';
-        damageList.style.display = 'none';
-        noDamageMsg.style.display = 'block';
-      } else {
-        damageList.innerHTML     = damage.map(d => `<li>${d}</li>`).join('');
-        damageList.style.display = 'block';
-        noDamageMsg.style.display = 'none';
+      // The notes the plate lookup already has, shown at once. Then every
+      // damage record on the vehicle, photos included, from the Worker.
+      const showNotes = () => {
+        if (damage.length === 0) {
+          damageList.innerHTML     = '';
+          damageList.style.display = 'none';
+          noDamageMsg.style.display = 'block';
+        } else {
+          damageList.innerHTML     = damage.map(d => `<li>${d}</li>`).join('');
+          damageList.style.display = 'block';
+          noDamageMsg.style.display = 'none';
+        }
+      };
+      showNotes();
+      loadVehicleDamage(v, showNotes);
+    }
+
+    // Every open damage record on the vehicle, from when it was added and from
+    // earlier returns, each with its note and photos (checkin_vehicle_damage,
+    // through the Worker, which links the private photos for an hour). Built
+    // with text nodes: notes are written by staff and renters. If it cannot be
+    // read, the notes shown already stay.
+    const VEHICLE_DAMAGE_URL = 'https://fleetr-ai-proxy.connor-0a5.workers.dev/checkin/vehicle-damage';
+    let damageAsked = 0;
+    async function loadVehicleDamage(v, fallback) {
+      const proof = customerSession?.proof;
+      if (!v?.id || !proof?.code) return;
+      const asked = ++damageAsked;
+      const damageList  = document.getElementById('damageList');
+      const noDamageMsg = document.getElementById('noDamageMsg');
+      let out = null;
+      try {
+        const res = await fetch(VEHICLE_DAMAGE_URL, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: proof.code, lastName: proof.lastName || '', vehicleId: String(v.id) }),
+        });
+        out = res.ok ? await res.json() : null;
+      } catch (e) {
+        console.warn('vehicle damage could not be read:', e);
       }
+      if (asked !== damageAsked) return;
+      if (!out || !out.ok || !Array.isArray(out.damage)) { fallback(); return; }
+      if (out.damage.length === 0) { fallback(); return; }
+      damageList.innerHTML = '';
+      out.damage.forEach((d) => {
+        const li = document.createElement('li');
+        const body = document.createElement('div');
+        body.className = 'damage-item';
+        const text = document.createElement('div');
+        text.textContent = d.note || (d.photoCount ? `Damage photographed${d.photoCount > 1 ? ` (${d.photoCount} photos)` : ''}` : 'Damage on record');
+        body.appendChild(text);
+        if (d.atReturn) {
+          const when = document.createElement('div');
+          when.className = 'damage-item__when';
+          when.textContent = 'Found at an earlier return';
+          body.appendChild(when);
+        }
+        if (d.photos && d.photos.length) {
+          const grid = document.createElement('div');
+          grid.className = 'damage-item__photos';
+          d.photos.forEach((p, i) => {
+            const a = document.createElement('a');
+            a.href = p.url; a.target = '_blank'; a.rel = 'noopener';
+            const img = document.createElement('img');
+            img.src = p.url; img.loading = 'lazy';
+            img.alt = p.note || `Damage photo ${i + 1}`;
+            a.appendChild(img);
+            grid.appendChild(a);
+          });
+          body.appendChild(grid);
+        }
+        li.appendChild(body);
+        damageList.appendChild(li);
+      });
+      damageList.style.display = 'block';
+      noDamageMsg.style.display = 'none';
     }
 
     document.getElementById('s2Btn').addEventListener('click', () => goTo('s4'));
@@ -3259,7 +3331,24 @@
     // The customer does not enter the odometer or fuel at pickup: they do not
     // have the keys yet. The starting readings are the vehicle's own last ones,
     // shown on the Contract and recorded by the database.
-    document.getElementById('s4Next').addEventListener('click', () => openContract());
+    // Nothing on this screen is required. If the agreement cannot be opened,
+    // the renter is told so, and Continue works again, rather than the tap
+    // doing nothing.
+    document.getElementById('s4Next').addEventListener('click', async () => {
+      const btn = document.getElementById('s4Next');
+      const err = document.getElementById('s4Error');
+      if (btn.disabled) return;
+      err.textContent = '';
+      btn.disabled = true;
+      try {
+        await openContract();
+      } catch (e) {
+        console.error('opening the rental agreement failed:', e);
+        err.textContent = "We couldn't open your rental agreement. Check your connection and tap Continue again.";
+      } finally {
+        btn.disabled = false;
+      }
+    });
 
     // ════════════════════════════════════════════════════════════════════════
     // Screen 5b: Protection
@@ -3562,7 +3651,7 @@
 
       const drivers = [readDriver('main'), ...extraDrivers];
       const coverages = vehicle?.switchPickup ? [] : (protectionOffer || []).map(p => ({
-        name: p.name, price: Number(p.pricePerDay) || 0, damage: damageLine(p),
+        name: p.name, price: Number(p.pricePerDay) || 0, damage: isDamageProtection(p) ? DAMAGE_COVERED : '',
         accepted: p.required || protectionAnswers[String(p.productId)]?.accepted === true,
       }));
 
