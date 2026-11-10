@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#F9F9F7" />
+  <meta name="robots" content="noindex" />
+  <title>Rental agreement</title>
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap');
+
+    /* The customer app's terracotta theme. */
+    :root {
+      --paper:      #F9F9F7;
+      --card:       #FFFFFF;
+      --line:       rgba(31, 30, 29, 0.12);
+      --muted:      rgba(31, 30, 29, 0.62);
+      --ink:        #1F1E1D;
+      --terra:      #F4845F;
+      --terra-dk:   #EE7550;
+      --terra-text: #C9603D;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px 20px; }
+    .company { font-size: 22px; font-weight: 700; margin: 0 0 4px; overflow-wrap: anywhere; }
+    .branch { color: var(--muted); font-size: 14px; margin: 0 0 18px; overflow-wrap: anywhere; }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    .code { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
+    h2 { font-size: 15px; margin: 22px 0 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+    .row { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; font-size: 14px; }
+    .row > span:first-child { color: var(--muted); flex: 0 0 auto; }
+    .row > span:last-child { text-align: right; min-width: 0; overflow-wrap: anywhere; }
+    .driver { padding: 6px 0; font-size: 14px; }
+    .driver strong { display: block; margin-bottom: 2px; }
+    .ack { white-space: pre-line; font-size: 13px; line-height: 1.55; background: var(--paper); border-radius: 8px; padding: 12px; }
+    .sig { display: block; max-width: 320px; width: 100%; margin-top: 6px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .note { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+    .actions { margin: 0 0 16px; display: flex; justify-content: flex-end; }
+    [hidden] { display: none !important; }
+    .btn {
+      appearance: none; border: 0; border-radius: 10px; background: var(--terra); color: #fff;
+      font: inherit; font-weight: 600; font-size: 15px; padding: 11px 18px; cursor: pointer;
+    }
+    .btn:hover { background: var(--terra-dk); }
+    .btn:focus-visible { outline: 2px solid var(--terra-text); outline-offset: 2px; }
+    .message { text-align: center; padding: 48px 8px; }
+    .message h1 { margin-bottom: 8px; }
+    .message p { color: var(--muted); margin: 0; }
+    .footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 18px; }
+    @media print {
+      body { background: #fff; }
+      main { padding: 0; max-width: none; }
+      .card { border: 0; padding: 0; }
+      .actions, .footer { display: none; }
+      h2 { break-after: avoid; }
+      .driver, .row { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="actions" id="actions" hidden>
+      <button class="btn" id="downloadBtn" type="button">Download PDF</button>
+    </div>
+    <div class="card" id="agreement">
+      <div class="message" id="message">
+        <h1>One moment</h1>
+        <p>Finding your rental agreement.</p>
+      </div>
+    </div>
+    <p class="footer" id="footer" hidden>fleetr</p>
+  </main>
+
+  <script type="module">
+    // ════════════════════════════════════════════════════════════════════════
+    // A renter's signed rental agreement
+    // ════════════════════════════════════════════════════════════════════════
+    // The email sent after check-in links here: this page's address and
+    // "#t=<token>", the reservation's app link token. The token is the whole
+    // proof, as it is for the check-in link. The agreement comes from one
+    // database function (fleetr-infra, renter_emails.sql,
+    // signed_agreement_by_link), which answers only for a signed agreement.
+    // Download PDF prints the page, which the browser saves as a PDF.
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@1/+esm';
+
+    const SUPABASE_URL  = 'https://hzcatlecvwpqxedrzfog.supabase.co';
+    const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6Y2F0bGVjdndwcXhlZHJ6Zm9nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzQzMTMsImV4cCI6MjA5MzY1MDMxM30.mfqwWQh54hPsRunAVB6RDf_IrvwKmhSYWWJ4sMy0rcw';
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
+
+    const card = document.getElementById('agreement');
+    const el = (tag, cls, text) => {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text != null) n.textContent = text;
+      return n;
+    };
+    const showMessage = (title, text) => {
+      card.replaceChildren();
+      const box = el('div', 'message');
+      box.append(el('h1', null, title), el('p', null, text));
+      card.append(box);
+    };
+
+    const FUEL_FRACTIONS = { '⅛': '1/8', '¼': '1/4', '⅜': '3/8', '½': '1/2', '⅝': '5/8', '¾': '3/4', '⅞': '7/8' };
+    const fuelText = (v) => (v == null ? '' : String(v).replace(/[⅛¼⅜½⅝¾⅞]/g, (c) => FUEL_FRACTIONS[c]));
+    const money = (n) => {
+      const v = Number(String(n ?? '').replace(/[^0-9.\-]/g, ''));
+      return String(n ?? '').trim() === '' || !Number.isFinite(v) ? '' : `$${v.toFixed(2)}`;
+    };
+    const isIsoDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+    const longDate = (iso) => isIsoDate(iso)
+      ? new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-CA', { timeZone: 'UTC', year: 'numeric', month: 'long', day: 'numeric' })
+      : '';
+    // A reservation's wall-clock time ("4:00" "PM", or "16:00"), as 4:00 PM.
+    function wallTime(raw, meridiem) {
+      const s = String(raw ?? '').trim();
+      const m = s.match(/^(\d{1,2})(?::(\d{1,2}))?/);
+      if (!m) return '';
+      let h = parseInt(m[1], 10);
+      const min = parseInt(m[2] || '0', 10);
+      const mer = String(meridiem || '').trim().toUpperCase();
+      if (mer === 'PM' && h < 12) h += 12;
+      if (mer === 'AM' && h === 12) h = 0;
+      if (h > 23 || min > 59) return '';
+      return `${h % 12 || 12}:${String(min).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+    }
+    function moment(value, tz) {
+      const d = value ? new Date(value) : null;
+      if (!d || Number.isNaN(d.getTime())) return '';
+      const show = (opts) => `${d.toLocaleDateString('en-CA', { ...opts, year: 'numeric', month: 'long', day: 'numeric' })}, ${d.toLocaleTimeString('en-US', { ...opts, hour: 'numeric', minute: '2-digit' })}`;
+      try { return show(tz ? { timeZone: tz } : {}); } catch { return show({}); }
+    }
+    function odometer(km, unit) {
+      const n = Number(km);
+      if (km == null || km === '' || !Number.isFinite(n)) return '';
+      const mi = unit === 'mi';
+      return `${Math.round(mi ? n / 1.609344 : n).toLocaleString('en-CA')} ${mi ? 'mi' : 'km'}`;
+    }
+
+    function render(a) {
+      document.title = `Rental agreement ${a.resCode || ''}`.trim();
+      card.replaceChildren();
+      const section = (title) => card.append(el('h2', null, title));
+      const row = (label, value) => {
+        if (value == null || String(value).trim() === '') return;
+        const r = el('div', 'row');
+        r.append(el('span', null, label), el('span', null, String(value)));
+        card.append(r);
+      };
+
+      card.append(el('p', 'company', a.company || 'Rental agreement'));
+      const addr = a.address || {};
+      const place = [addr.street, addr.city, [addr.province, addr.postalCode].filter(Boolean).join(' ')]
+        .map((x) => String(x || '').trim()).filter(Boolean).join(', ');
+      const branch = [a.branch, place].filter(Boolean).join(', ');
+      if (branch) card.append(el('p', 'branch', branch));
+      card.append(el('h1', null, 'Rental agreement'));
+      card.append(el('p', 'code', `Reservation code ${a.resCode || ''}`));
+
+      const drivers = Array.isArray(a.drivers) ? a.drivers.filter((d) => d && typeof d === 'object') : [];
+      section(drivers.length > 1 ? 'Drivers' : 'Driver');
+      if (!drivers.length) row('Renter', a.customer);
+      drivers.forEach((d, i) => {
+        const box = el('div', 'driver');
+        box.append(el('strong', null, `${i === 0 ? 'Main driver' : 'Other driver'}: ${[d.firstName, d.lastName].filter(Boolean).join(' ')}`));
+        const lines = [
+          [d.street, d.city, [d.province, d.postalCode].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+          d.dateOfBirth ? `Date of birth ${longDate(d.dateOfBirth) || d.dateOfBirth}` : '',
+          d.licenceNumber ? `Licence ${d.licenceNumber}${d.licenceProvince ? `, ${d.licenceProvince}` : ''}` : '',
+          d.licenceExpiry ? `Licence expires ${longDate(d.licenceExpiry) || d.licenceExpiry}` : '',
+        ].filter(Boolean);
+        lines.forEach((l) => box.append(el('div', null, l)));
+        card.append(box);
+      });
+
+      const v = a.vehicle || {};
+      section('Vehicle');
+      row('Vehicle', [v.make, v.model].filter(Boolean).join(' '));
+      row('Plate', v.plate);
+      row('Class', v.vehicleClass);
+      row('Odometer at pickup', odometer(a.mileage, a.distanceUnit));
+      row('Fuel at pickup', fuelText(a.fuelAtPickup));
+
+      section('Rental');
+      row('Picked up', moment(a.pickedUpAt, a.timeZone));
+      const dueTime = wallTime(a.returnTime, a.returnMeridiem);
+      row('Due back', [longDate(a.returnDate), dueTime].filter(Boolean).join(', '));
+      row('Daily rate', money(a.dailyRate));
+      const taxes = Array.isArray(a.salesTaxes) ? a.salesTaxes.filter((t) => t && String(t.name || '').trim() && Number(t.rate) > 0) : [];
+      if (taxes.length) row('Taxes', taxes.map((t) => `${String(t.name).trim()} ${Number(t.rate)}%`).join(', '));
+
+      const choices = Array.isArray(a.protectionChoices) ? a.protectionChoices.filter((c) => c && typeof c === 'object') : [];
+      if (choices.length) {
+        section('Coverages');
+        choices.forEach((c) => row(String(c.name || 'Coverage'),
+          c.accepted ? `Accepted${money(c.pricePerDay) ? `, ${money(c.pricePerDay)} a day` : ''}` : 'Declined'));
+      }
+      const ded = a.deductibles && typeof a.deductibles === 'object' ? a.deductibles : null;
+      if (ded && (money(ded.collision) || money(ded.comprehensive))) {
+        section('Deductibles');
+        row('Collision', money(ded.collision));
+        row('Comprehensive', money(ded.comprehensive));
+      }
+
+      if (a.acknowledgements && a.acknowledgements.body) {
+        section('Acknowledgements');
+        card.append(el('p', 'note', `Version ${a.acknowledgements.version}, agreed to at pickup:`));
+        card.append(el('div', 'ack', a.acknowledgements.body));
+      }
+
+      section('Signature');
+      if (/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(String(a.signature || ''))) {
+        const img = el('img', 'sig');
+        img.alt = 'Your signature';
+        img.src = a.signature;
+        card.append(img);
+      }
+      const signed = moment(a.pickedUpAt, a.timeZone);
+      if (signed) card.append(el('p', 'note', `Signed at pickup, ${signed}.`));
+
+      document.getElementById('actions').hidden = false;
+      document.getElementById('footer').hidden = false;
+    }
+
+    document.getElementById('downloadBtn').addEventListener('click', () => window.print());
+
+    const token = (() => {
+      if (!location.hash.startsWith('#t=')) return '';
+      const t = location.hash.slice(3);
+      return /^[A-Za-z0-9_-]{16,64}$/.test(t) ? t : '';
+    })();
+
+    async function load() {
+      if (!token) {
+        showMessage('This link is not valid', 'Open the link in your email again. If it still does not work, contact the rental company.');
+        return;
+      }
+      let out;
+      try {
+        out = await supabase.rpc('signed_agreement_by_link', { p_token: token });
+      } catch (e) {
+        out = { error: e };
+      }
+      if (out.error) {
+        console.warn('Agreement lookup failed:', out.error);
+        showMessage('Unable to connect', 'Reload the page to try again.');
+        return;
+      }
+      if (!out.data) {
+        showMessage('No signed agreement found', 'There is no signed rental agreement for this link. If you have just checked in, try again in a minute.');
+        return;
+      }
+      render(out.data);
+    }
+
+    window.addEventListener('hashchange', () => location.reload());
+    load();
+  </script>
+</body>
+</html>

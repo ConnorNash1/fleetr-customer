@@ -3962,6 +3962,7 @@
     // and nothing is opened.
     // The starting readings complete_pickup recorded, for the done screen.
     let pickupReadings = { odometer: null, fuelLevel: null };
+    const RENTER_EMAILS_URL = 'https://fleetr-ai-proxy.connor-0a5.workers.dev/renter-emails/notify';
 
     async function submitInspection() {
       const proof = customerSession?.proof;
@@ -4000,6 +4001,10 @@
         return { ok: false, code: result.error, message: writeErrorMessage(result.error) };
       }
       console.log(fn + ' ok:', result.rentalAgreementId);
+      // The signed agreement email goes now rather than at the worker's next
+      // run. Nothing is sent but what the database queued, and a failure here
+      // never touches the check-in.
+      fetch(RENTER_EMAILS_URL, { method: 'POST' }).catch(() => {});
       protectionChoices = Array.isArray(result.protectionChoices) ? result.protectionChoices : [];
       pickupReadings = { odometer: result.startOdometer ?? null, fuelLevel: result.startFuelLevel ?? null };
 
