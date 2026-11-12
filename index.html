@@ -3661,8 +3661,10 @@
       ];
       const additionalTotal = additional.reduce((s, [, n]) => s + n, 0);
       const subtotal = rental + additionalTotal;
+      // Each tax once, on the subtotal, to the cent, as the staff app's Close
+      // Rental works out final charges (chargeTotals in fleetr-internal).
       const taxes = (Array.isArray(res.salesTaxes) ? res.salesTaxes : [])
-        .filter(t => t && String(t.name || '').trim() && Number(t.rate) > 0)
+        .filter(t => t && String(t.name || '').trim() && Number(t.rate) > 0).slice(0, 2)
         .map(t => [`${String(t.name).trim()} ${Number(t.rate)}%`, Math.round(subtotal * Number(t.rate)) / 100]);
       const total = subtotal + taxes.reduce((s, [, n]) => s + n, 0);
 
