@@ -753,6 +753,7 @@
     .done-row:last-child { border-bottom: none; }
     .done-row .dr-label { color: var(--muted); }
     .done-row .dr-value { font-weight: 600; color: var(--ink); text-align: right; }
+    .done-note { margin: 0; padding: 12px 0 8px; color: var(--muted); font-size: 0.85rem; line-height: 1.45; }
 
     /* ── Protection ───────────────────────────────────────────── */
     .protection-card {
@@ -1473,6 +1474,7 @@
       <div class="done-icon"><svg class="done-tick" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30"/><path d="M20 33l8.5 8.5L44 25"/></svg></div>
       <h1>Return submitted</h1>
       <p class="subtitle">Leave the keys with a staff member.</p>
+      <div class="done-summary" id="s11Charges" data-ticket="Estimated final charges" hidden></div>
       <div class="upload-warning" id="s11PhotoWarning" role="status" hidden></div>
       <div class="spacer"></div>
       <button class="btn btn-primary" id="s11DoneBtn">Done</button>
@@ -4185,6 +4187,231 @@
     });
 
     // ════════════════════════════════════════════════════════════════════════
+    // Estimated final charges, on the Return submitted screen
+    // ════════════════════════════════════════════════════════════════════════
+    // Worked out the way Close Rental in the staff app works out final charges
+    // (fleetr-internal src/main.js): the functions below are its own, from
+    // DEFAULT_LINE_ITEMS to chargeTotals, run over what return_charge_estimate
+    // (fleetr-infra) reads from the agreement just returned. The company's fuel
+    // unit is passed in rather than read from its settings.
+    const finalCharges = (() => {
+      const L_PER_GAL = 3.785411784;
+      const DEFAULT_LINE_ITEMS = [
+        { key: 'vehicle', label: 'Vehicle Cost', applies: true,  amount: '', qty: '', qtyPlaceholder: 'Days'   },
+        { key: 'gas',     label: 'Gas',          applies: false, amount: '', qty: '', qtyPlaceholder: 'Litres' },
+        { key: 'mileage', label: 'Mileage',      applies: false, amount: '', qty: '', qtyPlaceholder: 'Miles'  },
+      ];
+      const LEGACY_PROTECTION_KEYS = ['waiver', 'roadside', 'injury'];
+      const isProtectionLine = (item) => !!item.protection || LEGACY_PROTECTION_KEYS.includes(item.key);
+
+      function withAcceptedProtection(items, choices, days) {
+        if (!Array.isArray(choices)) return items;
+        const have = new Set(items.map((it) => it.key));
+        const added = choices
+          .filter((c) => c && c.accepted && c.productId != null && !have.has(`protection:${c.productId}`))
+          .map((c) => ({
+            key: `protection:${c.productId}`, label: c.name || 'Protection', protection: true,
+            applies: true, amount: c.pricePerDay != null ? String(c.pricePerDay) : '',
+            qty: days ? String(days) : '', qtyPlaceholder: 'Days', coveredByBillTo: false,
+          }));
+        return added.length ? [...items, ...added] : items;
+      }
+
+      function chargeDays(pickupDate, endDate) {
+        if (!pickupDate || !endDate) return 0;
+        const diff = Math.round((new Date(`${endDate}T00:00:00`) - new Date(`${pickupDate}T00:00:00`)) / (1000 * 60 * 60 * 24));
+        return diff > 0 ? diff : 0;
+      }
+
+      const withRentalDays = (items, days) => items.map((item) =>
+        item.key === 'vehicle' || isProtectionLine(item) ? { ...item, qty: String(days) } : item);
+      const withVehicleRate = (items, dailyRate) => items.map((item) =>
+        item.key === 'vehicle' ? { ...item, amount: dailyRate } : item);
+
+      function rateGroups(price) {
+        const out = [];
+        price.lines.forEach((l) => {
+          const perDay = Number(l.perDay);
+          const g = out.find((x) => x.perDay === perDay);
+          if (g) { g.days += l.days; g.amount += Number(l.amount); }
+          else out.push({ days: l.days, perDay, amount: Number(l.amount) });
+        });
+        out.forEach((g) => { g.amount = Math.round(g.amount * 100) / 100; });
+        return out;
+      }
+      const rateCapText = (cap) => `Capped at the ${cap.days >= 28 ? 'monthly' : 'weekly'} price`;
+
+      function withRentalPrice(items, rentalPrice, { days, dailyRate }) {
+        const isVehicle = (it) => it.key === 'vehicle' || String(it.key).startsWith('vehicle:');
+        if (!rentalPrice) {
+          if (!items.some((it) => String(it.key).startsWith('vehicle:')) && !items.some((it) => it.key === 'vehicle' && it.label !== 'Vehicle Cost')) return items;
+          return items.filter((it) => !String(it.key).startsWith('vehicle:')).map((it) => it.key === 'vehicle'
+            ? { ...it, label: 'Vehicle Cost', qty: String(days), amount: dailyRate } : it);
+        }
+        const at = Math.max(0, items.findIndex(isVehicle));
+        const was = items.find((it) => it.key === 'vehicle');
+        const applies = was ? was.applies : true;
+        const lines = rateGroups(rentalPrice).map((l, i) => {
+          const exact = Math.round(l.perDay * l.days * 100) === Math.round(l.amount * 100);
+          return {
+            key: i === 0 ? 'vehicle' : `vehicle:${i}`,
+            label: 'Vehicle',
+            applies, qty: String(l.days), qtyPlaceholder: 'Days',
+            amount: String(exact ? l.perDay : Math.round((l.amount / l.days) * 1e6) / 1e6),
+          };
+        });
+        if (rentalPrice.cap) {
+          lines.push({ key: 'vehicle:cap', label: rateCapText(rentalPrice.cap), applies, qty: '1', qtyPlaceholder: '', amount: String(rentalPrice.cap.amount) });
+        }
+        const rest = items.filter((it) => !isVehicle(it));
+        return [...rest.slice(0, at), ...lines, ...rest.slice(at)];
+      }
+
+      function gasChargeForReturn({ pickupGas, returnGas, vehicle, ratePerLitre }) {
+        const from = FUEL_LABELS.indexOf(pickupGas);
+        const to   = FUEL_LABELS.indexOf(returnGas);
+        if (from === -1 || to === -1 || to >= from) return null;
+        const tank = parseFloat(vehicle?.tankSizeLiters);
+        if (!Number.isFinite(tank) || tank <= 0) return null;
+        const rate = parseFloat(ratePerLitre);
+        if (!Number.isFinite(rate) || rate <= 0) return null;
+        const charge = ((from - to) / 8) * tank * rate;
+        if (!Number.isFinite(charge) || charge <= 0) return null;
+        return (Math.round(charge * 100) / 100).toFixed(2);
+      }
+
+      function fuelChargeLine({ pickupGas, returnGas, tankSizeLiters, ratePerLitre, fuelUnit }) {
+        if (gasChargeForReturn({ pickupGas, returnGas, vehicle: { tankSizeLiters }, ratePerLitre }) === null) return null;
+        const litres = ((FUEL_LABELS.indexOf(pickupGas) - FUEL_LABELS.indexOf(returnGas)) / 8) * parseFloat(tankSizeLiters);
+        const gal = fuelUnit === 'gal';
+        return {
+          qty: String(Math.round((gal ? litres / L_PER_GAL : litres) * 100) / 100),
+          amount: String(gal ? Math.round(parseFloat(ratePerLitre) * L_PER_GAL * 10000) / 10000 : parseFloat(ratePerLitre)),
+        };
+      }
+
+      function withFuelCharge(items, fuel) {
+        if (!fuel) return items;
+        const gas = items.find((it) => it.key === 'gas');
+        if (gas && gas.applies && lineItemAmount(gas) > 0) return items;
+        const line = { ...(gas || DEFAULT_LINE_ITEMS[1]), key: 'gas', applies: true, qty: fuel.qty, amount: fuel.amount };
+        return gas ? items.map((it) => (it.key === 'gas' ? line : it)) : [...items, line];
+      }
+
+      const lineItemAmount = (item) => (parseFloat(item.qty) || 0) * (parseFloat(item.amount) || 0);
+
+      function chargeTotals({ lineItems, salesTaxes, billToCategory }) {
+        const billToItems   = lineItems.filter((it) => !isProtectionLine(it) || it.coveredByBillTo);
+        const customerItems = lineItems.filter((it) => isProtectionLine(it) && !it.coveredByBillTo);
+        const sumLines      = (items) => items.reduce((s, it) => s + (it.applies ? lineItemAmount(it) : 0), 0);
+        const billToTotal   = sumLines(billToItems);
+        const customerTotal = sumLines(customerItems);
+        const taxLinesFor = (subtotal) => (salesTaxes || []).map((t) => ({
+          label: `${String(t.name).trim()} ${Number(t.rate)}%`,
+          amount: Math.round(subtotal * Number(t.rate)) / 100,
+        }));
+        const sumTax = (lines) => lines.reduce((s, l) => s + l.amount, 0);
+        const subTotal         = billToTotal + customerTotal;
+        const allTaxLines      = taxLinesFor(subTotal);
+        const billToTaxLines   = taxLinesFor(billToTotal);
+        const customerTaxLines = taxLinesFor(customerTotal);
+        const billToDue        = billToTotal + sumTax(billToTaxLines);
+        const customerDue      = customerTotal + sumTax(customerTaxLines);
+        const retail           = billToCategory === 'Retail';
+        const grandTotal       = retail ? subTotal + sumTax(allTaxLines) : billToDue + customerDue;
+        return { subTotal, allTaxLines, billToTaxLines, customerTaxLines, grandTotal };
+      }
+
+      const BILL_TO = { retail: 'Retail', bodyshop_dealership: 'Bodyshop/Dealership', insurance: 'Insurance', corporate: 'Corporate' };
+
+      // Close Rental's closeCharges, over return_charge_estimate's answer. The
+      // fuel is charged as Close Rental charges it: only when the vehicle came
+      // back with less and no damage was reported.
+      function estimate(d) {
+        const days = chargeDays(d.pickupDate, d.returnedDate);
+        const rate = d.dailyRate ?? '';
+        const saved = Array.isArray(d.lineItems) && d.lineItems.length > 0 ? d.lineItems : DEFAULT_LINE_ITEMS;
+        let lines = withAcceptedProtection(saved.filter((it) => it.key !== 'winter'), d.protectionChoices, days);
+        lines = withRentalPrice(withVehicleRate(withRentalDays(lines, days), rate), d.price || null, { days, dailyRate: rate });
+        const from = FUEL_LABELS.indexOf(d.fuelAtPickup), to = FUEL_LABELS.indexOf(d.returnFuelLevel);
+        const short = !d.returnHasDamage && from !== -1 && to !== -1 && to < from;
+        lines = withFuelCharge(lines, short
+          ? fuelChargeLine({ pickupGas: d.fuelAtPickup, returnGas: d.returnFuelLevel, tankSizeLiters: d.tankSizeLiters, ratePerLitre: d.ratePerLitre, fuelUnit: d.fuelUnit })
+          : null);
+        const salesTaxes = (Array.isArray(d.salesTaxes) ? d.salesTaxes : [])
+          .filter((t) => t && String(t.name ?? '').trim() !== '' && Number(t.rate) > 0).slice(0, 2);
+        const billToCategory = BILL_TO[d.billingType] || null;
+        return {
+          lines, days, billToCategory,
+          extraDays: Math.max(0, days - chargeDays(d.pickupDate, d.dueDate)),
+          totals: chargeTotals({ lineItems: lines, salesTaxes, billToCategory }),
+        };
+      }
+
+      // The rows, as the receipt email lists them: the days, the extra days,
+      // each charge with what it comes to, the subtotal, the taxes (each
+      // side's when someone else pays), then the total.
+      function rows(d) {
+        const e = estimate(d);
+        const rate = (n) => { const v = Number(n) || 0; return Math.round(v * 100) === v * 100 ? money(v) : `$${Math.round(v * 10000) / 10000}`; };
+        const unit = (it) => it.key === 'gas' ? (d.fuelUnit === 'gal' ? ' gal' : ' L')
+          : it.key === 'mileage' ? (d.distanceUnit === 'mi' ? ' mi' : ' km')
+          : Number(it.qty) === 1 ? ' day' : ' days';
+        const charges = e.lines.filter((it) => it.applies && lineItemAmount(it) !== 0).map((it) => {
+          const name = it.key === 'gas' ? 'Fuel' : String(it.label || 'Charge').trim();
+          return [it.key === 'vehicle:cap' ? name : `${name}, ${it.qty}${unit(it)} at ${rate(it.amount)}`, money(lineItemAmount(it))];
+        });
+        const t = e.totals;
+        const taxes = e.billToCategory === 'Retail' ? t.allTaxLines : [
+          ...t.billToTaxLines.map((x) => ({ ...x, label: `${x.label} (bill-to)` })),
+          ...t.customerTaxLines.filter((x) => x.amount).map((x) => ({ ...x, label: `${x.label} (customer)` })),
+        ];
+        return [
+          ['Rental days', String(e.days)],
+          e.extraDays > 0 ? ['Extra days past the due date', String(e.extraDays)] : null,
+          ...charges,
+          ['Subtotal', money(t.subTotal)],
+          ...taxes.map((x) => [x.label, money(x.amount)]),
+          ['Total', money(t.grandTotal)],
+        ].filter(Boolean);
+      }
+
+      return { estimate, rows };
+    })();
+
+    // The card on s11. Left hidden when the estimate cannot be had: the
+    // return is saved either way.
+    async function showFinalCharges(proof) {
+      const box = document.getElementById('s11Charges');
+      box.hidden = true;
+      box.replaceChildren();
+      let d = null;
+      try {
+        const { data, error } = await supabase.rpc('return_charge_estimate', { p_code: proof.code, p_last_name: proof.lastName });
+        d = !error && data && data.ok ? data : null;
+        if (error) console.warn('return_charge_estimate failed:', error);
+      } catch (e) {
+        console.warn('return_charge_estimate failed:', e);
+      }
+      if (!d) return;
+      let list;
+      try { list = finalCharges.rows(d); } catch (e) { console.warn('estimate could not be worked out:', e); return; }
+      list.forEach(([label, value]) => {
+        const r = document.createElement('div');
+        r.className = 'done-row';
+        const l = document.createElement('span'); l.className = 'dr-label'; l.textContent = label;
+        const v = document.createElement('span'); v.className = 'dr-value'; v.textContent = value;
+        r.append(l, v);
+        box.appendChild(r);
+      });
+      const note = document.createElement('p');
+      note.className = 'done-note';
+      note.textContent = 'Your receipt will be emailed once the rental is closed.';
+      box.appendChild(note);
+      box.hidden = false;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
     // submitReturn: write return data to Supabase then go to s11
     // ════════════════════════════════════════════════════════════════════════
     // Through complete_return. The database re-checks the code and name, finds
@@ -4249,6 +4476,7 @@
       ]);
       await savePhotoNotes(result.rentalAgreementId, proof.code, upload.saved);
       showPhotoUploadWarning('s11PhotoWarning', upload.failed.length);
+      await showFinalCharges(proof);
 
       locBtn.disabled = false;
       locBtn.textContent = 'Submit return';
