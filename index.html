@@ -1700,7 +1700,7 @@
     // ── Screen routing ────────────────────────────────────────────────────────
     // One task a screen, in order. Protection is counted only when something
     // is offered. sCar is in the return too, for when the plate is asked for.
-    const PICKUP_SCREENS = ['sFind','s1','sDriver','sProt','sIns','sCar','s2','s4','s6','s7'];
+    const PICKUP_SCREENS = ['sFind','s1','sDriver','sCar','s2','s4','sProt','sIns','s6','s7'];
     const RETURN_SCREENS = ['sFind','sOut','sCar','s8','s9','s9b','s10','s10b','s11'];
     const ALL_SCREENS    = ['sFind','sOut','s1','sDriver','sProt','sIns','sCar','s2','s4','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel','sResched','sExtend'];
 
@@ -2151,7 +2151,6 @@
       protectionOffer = null;
       protectionAnswers = {};
       protectionChoices = [];
-      protectionFromContract = false;
       resetInsurance();
       contractVehicle = null;
       clearLicenseForm();
@@ -2513,7 +2512,7 @@
 
     document.getElementById('carBack').addEventListener('click', () => {
       if (carMode === 'return') { goTo('sOut'); return; }
-      goTo(insuranceShown() ? 'sIns' : protectionShown() ? 'sProt' : 'sDriver');
+      goTo('sDriver');
     });
 
     // The car is checked, then the pickup or return goes on with it. quiet:
@@ -2738,9 +2737,6 @@
     // goes to complete_pickup and on the agreement. Never charged for.
     const MAX_EXTRA_DRIVERS = 4;
     let extraDrivers = [];
-    // Set when the contract sent the customer back to Protection, so Continue
-    // there goes straight back to sign.
-    let protectionFromContract = false;
 
     // The terms lookup_reservation returned with the reservation.
     const contractTerms = () => customerSession?.reservation?.contract || {};
@@ -2855,22 +2851,6 @@
         return;
       }
       err.textContent = '';
-      // The offer could not be read before: try again, so a customer with
-      // products to answer is not sent past them.
-      if (protectionOffer === null) {
-        const next = document.getElementById('sDriverNext');
-        next.disabled = true;
-        const loaded = await loadProtectionOffer();
-        next.disabled = false;
-        if (!loaded) { err.textContent = 'Unable to connect. Please try again.'; return; }
-      }
-      protectionFromContract = false;
-      if (insuranceShown()) { goTo('sIns'); return; }
-      if (protectionShown()) {
-        renderProtection();
-        goTo('sProt');
-        return;
-      }
       openCarScreen('pickup');
     });
 
@@ -3328,7 +3308,8 @@
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // After Photos of Concern: Coverages, or straight to the Contract
+    // After Photos of Concern: Protection or Your insurance, or straight to
+    // the Contract
     // ════════════════════════════════════════════════════════════════════════
     // The customer does not enter the odometer or fuel at pickup: they do not
     // have the keys yet. The starting readings are the vehicle's own last ones,
@@ -3341,6 +3322,20 @@
       const err = document.getElementById('s4Error');
       if (btn.disabled) return;
       err.textContent = '';
+      // The offer could not be read before: try again, so a customer with
+      // products to answer is not sent past them.
+      if (protectionOffer === null) {
+        btn.disabled = true;
+        const loaded = await loadProtectionOffer();
+        btn.disabled = false;
+        if (!loaded) { err.textContent = 'Unable to connect. Please try again.'; return; }
+      }
+      if (insuranceShown()) { goTo('sIns'); return; }
+      if (protectionShown()) {
+        renderProtection();
+        goTo('sProt');
+        return;
+      }
       btn.disabled = true;
       try {
         await openContract();
@@ -3412,7 +3407,7 @@
       thumb.hidden = false;
       document.getElementById('insPolicyError').textContent = '';
     });
-    document.getElementById('sInsBack').addEventListener('click', () => goTo('sDriver'));
+    document.getElementById('sInsBack').addEventListener('click', () => goTo('s4'));
     document.getElementById('sInsNext').addEventListener('click', () => {
       const problem = insuranceProblem({
         company: document.getElementById('insCompanyInput').value,
@@ -3422,8 +3417,7 @@
       document.getElementById('insCompanyError').textContent = problem?.field === 'company' ? problem.text : '';
       document.getElementById('insPolicyError').textContent = problem?.field === 'policy' ? problem.text : '';
       if (problem) return;
-      if (protectionFromContract && vehicle) { openContract(); return; }
-      openCarScreen('pickup');
+      openContract();
     });
 
     // Reads the offer. Returns false when it could not be read. Answers for a
@@ -3539,11 +3533,9 @@
     document.getElementById('sProtNext').addEventListener('click', () => {
       if (!(protectionOffer || []).every(protectionAnswered)) return;
       document.getElementById('sProtError').textContent = '';
-      // Sent back here from signing: the car is chosen, so straight back.
-      if (protectionFromContract && vehicle) { openContract(); return; }
-      openCarScreen('pickup');
+      openContract();
     });
-    document.getElementById('sProtBack').addEventListener('click', () => goTo('sDriver'));
+    document.getElementById('sProtBack').addEventListener('click', () => goTo('s4'));
 
     // What goes to complete_pickup: one answer per product offered. A decline
     // is acknowledged by the declined line in the rental agreement, signed
@@ -3829,7 +3821,6 @@
           if (protectionShown()) {
             renderProtection();
             document.getElementById('sProtError').textContent = outcome.message;
-            protectionFromContract = true;
             goTo('sProt');
             return;
           }
@@ -4070,7 +4061,7 @@
     // ════════════════════════════════════════════════════════════════════════
     document.getElementById('s2Back').addEventListener('click', () => goTo('sCar'));
     document.getElementById('s4Back').addEventListener('click', () => goTo('s2'));
-    document.getElementById('s6Back').addEventListener('click', () => goTo('s4'));
+    document.getElementById('s6Back').addEventListener('click', () => goTo(insuranceShown() ? 'sIns' : protectionShown() ? 'sProt' : 's4'));
 
     // ════════════════════════════════════════════════════════════════════════
     // Screen 8: Return · Step 1 of 5 · Odometer
