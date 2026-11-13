@@ -2742,6 +2742,38 @@
     const contractTerms = () => customerSession?.reservation?.contract || {};
     const money = (n) => `$${(Number(n) || 0).toFixed(2)}`;
 
+    // ── The taxes on an estimate ──
+    // The reservation's taxes (rental_taxes_by_link, estimate_taxes.sql in
+    // fleetr-infra), each charged once on the amount before tax, to the cent,
+    // as Close Rental and the emails charge them. Null when they could not be
+    // read, and the estimate is then shown before tax, as it said before.
+    async function taxesByLink(proof) {
+      if (!proof || !proof.code) return null;
+      try {
+        const { data, error } = await supabase.rpc('rental_taxes_by_link', {
+          p_code: proof.code, p_last_name: proof.lastName ?? proof.last ?? '',
+        });
+        return !error && Array.isArray(data) ? data : null;
+      } catch (e) {
+        console.warn('rental_taxes_by_link failed:', e);
+        return null;
+      }
+    }
+    function taxedEstimate(beforeTax, salesTaxes) {
+      const sub = Math.round(Number(beforeTax) * 100) / 100;
+      const taxLines = (salesTaxes || []).filter(t => t && String(t.name || '').trim() && Number(t.rate) > 0).slice(0, 2)
+        .map(t => ({ label: `${String(t.name).trim()} ${Number(t.rate)}%`, amount: Math.round(sub * Number(t.rate)) / 100 }));
+      return { beforeTax: sub, taxLines, total: sub + taxLines.reduce((s, t) => s + t.amount, 0) };
+    }
+    // Before tax, each tax and Estimated total; with no taxes read, the
+    // estimate before tax alone.
+    function estimateRows(beforeTax, salesTaxes) {
+      if (beforeTax == null || !Number.isFinite(Number(beforeTax))) return [];
+      if (!Array.isArray(salesTaxes)) return [['Estimated total', `${money(beforeTax)} before tax`]];
+      const e = taxedEstimate(beforeTax, salesTaxes);
+      return [['Before tax', money(e.beforeTax)], ...e.taxLines.map(t => [t.label, money(t.amount)]), ['Estimated total', money(e.total)]];
+    }
+
     // ── The rental's price, worked out by the database ──
     // rental_price_by_link (seasonal_rates.sql in fleetr-infra) prices the
     // reservation from the rates it was booked at: normal days, each season's
@@ -4918,12 +4950,13 @@
           }).catch((e) => console.warn('reschedule text request failed:', e));
         }
         const p = data.price;
+        const taxes = p && p.total != null ? await taxesByLink(proof) : null;
         view({ title: 'Pickup time changed',
           subtitle: `Your reservation${current && current.company ? ` with ${current.company}` : ''} has been changed. We will text you the new times.` });
         summaryRows([
           ['New pickup', fmtWhen(data.pickup)],
           ['New return', fmtWhen(data.return)],
-          ['Estimated price', p && p.total != null ? `${money(p.total)} before tax` : ''],
+          ...(p && p.total != null ? estimateRows(p.total, taxes) : []),
         ]);
       });
 
@@ -5232,12 +5265,15 @@
           }).catch((e) => console.warn('extension text request failed:', e));
         }
         const p = data.price, was = data.was;
+        const taxes = p && p.total != null ? await taxesByLink(proof) : null;
+        // The difference between the two totals, each taxed the same way.
+        const withTax = (n) => (Array.isArray(taxes) ? taxedEstimate(n, taxes).total : Number(n));
         view({ title: 'Rental extended',
           subtitle: `Your rental is now due back ${fmtWhen(data.return)}. We will text you to confirm.` });
         summaryRows(sumEl, [
           ['New return', fmtWhen(data.return)],
-          ['Estimated total', p && p.total != null ? `${money(p.total)} before tax` : ''],
-          ['Difference', p && p.total != null && was && was.total != null ? `${money(Math.max(0, p.total - was.total))} more` : ''],
+          ...(p && p.total != null ? estimateRows(p.total, taxes) : []),
+          ['Difference', p && p.total != null && was && was.total != null ? `${money(Math.max(0, withTax(p.total) - withTax(was.total)))} more` : ''],
         ]);
       });
 
