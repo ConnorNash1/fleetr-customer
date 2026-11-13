@@ -4208,11 +4208,10 @@
         return added.length ? [...items, ...added] : items;
       }
 
-      function chargeDays(pickupDate, endDate) {
-        if (!pickupDate || !endDate) return 0;
-        const diff = Math.round((new Date(`${endDate}T00:00:00`) - new Date(`${pickupDate}T00:00:00`)) / (1000 * 60 * 60 * 24));
-        return diff > 0 ? diff : 0;
-      }
+      // The days, as return_charge_estimate counts them with booking_days, the
+      // count Close Rental uses: every started 24 hours from the pickup, on the
+      // branch's clock. 0 when it was not given.
+      const dayCount = (n) => (Number.isInteger(Number(n)) && Number(n) > 0 ? Number(n) : 0);
 
       const withRentalDays = (items, days) => items.map((item) =>
         item.key === 'vehicle' || isProtectionLine(item) ? { ...item, qty: String(days) } : item);
@@ -4319,7 +4318,8 @@
       // fuel is charged as Close Rental charges it: only when the vehicle came
       // back with less and no damage was reported.
       function estimate(d) {
-        const days = chargeDays(d.pickupDate, d.returnedDate);
+        const days = dayCount(d.days);
+        if (!days) throw new Error('no day count');
         const rate = d.dailyRate ?? '';
         const saved = Array.isArray(d.lineItems) && d.lineItems.length > 0 ? d.lineItems : DEFAULT_LINE_ITEMS;
         let lines = withAcceptedProtection(saved.filter((it) => it.key !== 'winter'), d.protectionChoices, days);
@@ -4334,7 +4334,7 @@
         const billToCategory = BILL_TO[d.billingType] || null;
         return {
           lines, days, billToCategory,
-          extraDays: Math.max(0, days - chargeDays(d.pickupDate, d.dueDate)),
+          extraDays: dayCount(d.bookedDays) ? Math.max(0, days - dayCount(d.bookedDays)) : 0,
           totals: chargeTotals({ lineItems: lines, salesTaxes, billToCategory }),
         };
       }
