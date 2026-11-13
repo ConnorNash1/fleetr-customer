@@ -43,6 +43,7 @@
     .row { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; font-size: 14px; }
     .row > span:first-child { color: var(--muted); flex: 0 0 auto; }
     .row > span:last-child { text-align: right; min-width: 0; overflow-wrap: anywhere; }
+    .row.total > span { font-weight: 600; color: inherit; }
     .driver { padding: 6px 0; font-size: 14px; }
     .driver strong { display: block; margin-bottom: 2px; }
     .ack { white-space: pre-line; font-size: 13px; line-height: 1.55; background: var(--paper); border-radius: 8px; padding: 12px; }
@@ -213,6 +214,23 @@
         section('Deductibles');
         row('Collision', money(ded.collision));
         row('Comprehensive', money(ded.comprehensive));
+      }
+
+      // The estimated charges, as the agreement email shows them: the rental
+      // and the protection before tax (renter_email_agreement_charges), each
+      // tax on them once, to the cent, then the total.
+      const c = a.charges && typeof a.charges === 'object' ? a.charges : null;
+      const rental = Number(c?.rental), protection = Number(c?.protection) || 0, days = Number(c?.days);
+      if (c && Number.isFinite(rental) && Number.isInteger(days) && days > 0) {
+        const subtotal = Math.round((rental + protection) * 100) / 100;
+        const taxLines = taxes.slice(0, 2).map((t) => ({ label: `${String(t.name).trim()} ${Number(t.rate)}%`, amount: Math.round(subtotal * Number(t.rate)) / 100 }));
+        section('Estimated charges');
+        row(`Rental, ${days} day${days === 1 ? '' : 's'}`, money(rental));
+        row('Protection', protection > 0 ? money(protection) : 'None');
+        row('Before tax', money(subtotal));
+        taxLines.forEach((t) => row(t.label, money(t.amount)));
+        row('Estimated total', money(subtotal + taxLines.reduce((s, t) => s + t.amount, 0)));
+        card.lastChild.classList.add('total');
       }
 
       if (a.acknowledgements && a.acknowledgements.body) {
