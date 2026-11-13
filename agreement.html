@@ -281,6 +281,12 @@
         showMessage('No signed agreement found', 'There is no signed rental agreement for this link. If you have just checked in, try again in a minute.');
         return;
       }
+      // The link is open until 30 days after the rental closed.
+      if (out.data.expired) {
+        const company = String(out.data.company || '').trim();
+        showMessage('This link has expired', `Agreement links work for 30 days after the rental closes. For a copy, contact ${company || 'the rental company'}.`);
+        return;
+      }
       render(out.data);
     }
 
