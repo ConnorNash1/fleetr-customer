@@ -1038,6 +1038,13 @@
         <div class="protection-card__name">Booking cancelled</div>
         <p class="protection-card__wording" id="cancelDoneText"></p>
       </div>
+      <div class="protection-card" id="payBalance" hidden>
+        <div class="protection-card__name" id="payBalanceTitle">Balance owing</div>
+        <p class="protection-card__wording" id="payBalanceText"></p>
+        <div class="protection-card__choices" id="payBalanceChoices">
+          <button type="button" class="btn btn-primary" id="payBalanceBtn">Pay by card</button>
+        </div>
+      </div>
       <div class="spacer"></div>
       <p class="consent-line" id="findConsent">By continuing, you agree to fleetr's <a href="https://fleetr.ai/#/terms" target="_blank" rel="noopener">Terms of Use</a> and <a href="https://fleetr.ai/#/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
       <button class="btn btn-primary" id="findBookingBtn" type="button">Start check-in</button>
@@ -2140,6 +2147,7 @@
     // A new customer starts with nothing from the last one.
     function startSession({ booking, res }, code, lastName) {
       bookingInfo = booking;
+      payBalance.hidden = true;
       customerSession = {
         operatorId: res.operatorId, locationId: res.locationId, reservation: res,
         proof: lastName ? { code: res.resCode, lastName } : { code, lastName: '' },
@@ -2158,11 +2166,61 @@
       beginFlow();
     }
 
+    // ── A balance left on a finished rental, paid by card ──
+    // Through a Stripe payment link on the rental company's own account. The
+    // worker asks the database what is owing (charge_totals), never this page.
+    const STRIPE_URL = 'https://fleetr-ai-proxy.connor-0a5.workers.dev/stripe';
+    const payBalance = document.getElementById('payBalance');
+    const payBalanceTitle = document.getElementById('payBalanceTitle');
+    const payBalanceText = document.getElementById('payBalanceText');
+    const payBalanceChoices = document.getElementById('payBalanceChoices');
+    const payBalanceBtn = document.getElementById('payBalanceBtn');
+    async function stripeRenter(route) {
+      const res = await fetch(`${STRIPE_URL}/${route}`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(customerSession.proof),
+      });
+      return res.json().catch(() => null);
+    }
+    async function showBalance() {
+      if (!customerSession || !customerSession.proof) return;
+      try {
+        const d = await stripeRenter('renter-balance');
+        if (!d || !d.ok || !(Number(d.amount) > 0)) return;
+        findError.textContent = '';
+        payBalanceTitle.textContent = 'Balance owing';
+        payBalanceText.textContent = `$${Number(d.amount).toFixed(2)} is still owing on this rental. You can pay it by card now.`;
+        payBalanceChoices.hidden = false;
+        payBalance.hidden = false;
+      } catch (e) { console.warn('balance lookup failed:', e); }
+    }
+    payBalanceBtn.addEventListener('click', async () => {
+      payBalanceBtn.disabled = true;
+      payBalanceBtn.innerHTML = '<span class="spinner"></span>Opening payment…';
+      try {
+        const d = await stripeRenter('renter-pay');
+        if (d && d.ok && d.url) { location.href = d.url; return; }
+        payBalanceText.textContent = (d && d.message) || 'The payment could not be started. Please try again.';
+      } catch (e) {
+        payBalanceText.textContent = 'The payment could not be started. Please try again.';
+      }
+      payBalanceBtn.disabled = false;
+      payBalanceBtn.textContent = 'Pay by card';
+    });
+    // Back from a paid link.
+    if (new URLSearchParams(location.search).get('paid') === '1') {
+      payBalanceTitle.textContent = 'Payment received';
+      payBalanceText.textContent = 'Thank you. Your payment went through, and the rental company has it.';
+      payBalanceChoices.hidden = true;
+      payBalance.hidden = false;
+      history.replaceState(null, '', location.pathname + location.hash);
+    }
+
     // Straight on from the first screen: check-in before pickup (or a pickup
     // of a car staff moved them to), the return while the rental is out.
     function beginFlow() {
       const b = bookingInfo;
-      if (b.stage === 'done') { findError.textContent = 'This rental is complete. Nothing more is needed here.'; return; }
+      if (b.stage === 'done') { findError.textContent = 'This rental is complete. Nothing more is needed here.'; showBalance(); return; }
       if (b.stage === 'out') { showOut(); return; }
       flowType = 'pickup';
       syncLicenseButtons();
