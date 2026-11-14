@@ -2742,10 +2742,28 @@
     const contractTerms = () => customerSession?.reservation?.contract || {};
     const money = (n) => `$${(Number(n) || 0).toFixed(2)}`;
 
+    // ── What a rental's charges come to, from the database ──
+    // charge_totals (charge_totals.sql in fleetr-infra), the one calculation
+    // the staff app, the emails and the agreement page use too: each tax once
+    // on the subtotal, to the cent. Null when it could not be had.
+    async function chargeTotalsFor(lineItems, salesTaxes, billTo = 'Retail', payments = []) {
+      try {
+        const { data, error } = await supabase.rpc('charge_totals', {
+          p_line_items: lineItems || [], p_payments: payments || [], p_sales_taxes: salesTaxes || [], p_bill_to: billTo,
+        });
+        if (error) console.warn('charge_totals failed:', error);
+        return !error && data ? data : null;
+      } catch (e) {
+        console.warn('charge_totals failed:', e);
+        return null;
+      }
+    }
+    // An amount before tax as the one line charge_totals takes.
+    const beforeTaxLine = (amount) => [{ key: 'vehicle', applies: true, qty: 1, amount: Number(amount) }];
+
     // ── The taxes on an estimate ──
     // The reservation's taxes (rental_taxes_by_link, estimate_taxes.sql in
-    // fleetr-infra), each charged once on the amount before tax, to the cent,
-    // as Close Rental and the emails charge them. Null when they could not be
+    // fleetr-infra), charged by charge_totals. Null when they could not be
     // read, and the estimate is then shown before tax, as it said before.
     async function taxesByLink(proof) {
       if (!proof || !proof.code) return null;
@@ -2759,19 +2777,18 @@
         return null;
       }
     }
-    function taxedEstimate(beforeTax, salesTaxes) {
-      const sub = Math.round(Number(beforeTax) * 100) / 100;
-      const taxLines = (salesTaxes || []).filter(t => t && String(t.name || '').trim() && Number(t.rate) > 0).slice(0, 2)
-        .map(t => ({ label: `${String(t.name).trim()} ${Number(t.rate)}%`, amount: Math.round(sub * Number(t.rate)) / 100 }));
-      return { beforeTax: sub, taxLines, total: sub + taxLines.reduce((s, t) => s + t.amount, 0) };
+    // An amount before tax with its taxes, from charge_totals; null when the
+    // taxes or the totals could not be had.
+    async function taxedEstimate(beforeTax, salesTaxes) {
+      if (beforeTax == null || !Number.isFinite(Number(beforeTax)) || !Array.isArray(salesTaxes)) return null;
+      return chargeTotalsFor(beforeTaxLine(beforeTax), salesTaxes);
     }
-    // Before tax, each tax and Estimated total; with no taxes read, the
+    // Before tax, each tax and Estimated total; with no totals had, the
     // estimate before tax alone.
-    function estimateRows(beforeTax, salesTaxes) {
+    function estimateRows(beforeTax, totals) {
       if (beforeTax == null || !Number.isFinite(Number(beforeTax))) return [];
-      if (!Array.isArray(salesTaxes)) return [['Estimated total', `${money(beforeTax)} before tax`]];
-      const e = taxedEstimate(beforeTax, salesTaxes);
-      return [['Before tax', money(e.beforeTax)], ...e.taxLines.map(t => [t.label, money(t.amount)]), ['Estimated total', money(e.total)]];
+      if (!totals) return [['Estimated total', `${money(beforeTax)} before tax`]];
+      return [['Before tax', money(totals.subTotal)], ...totals.allTaxLines.map(t => [t.label, money(t.amount)]), ['Estimated total', money(totals.grandTotal)]];
     }
 
     // ── The rental's price, worked out by the database ──
@@ -3598,6 +3615,8 @@
     let contractVehicle = null;
     // What rental_price_by_link returned for now to the booked return, or null.
     let contractPrice = null;
+    // What the charges come to, from charge_totals, or null.
+    let contractTotals = null;
 
     async function openContract() {
       const proof = customerSession?.proof;
@@ -3614,6 +3633,11 @@
         }
       }
       contractPrice = await priceByLink(proof, null, null);
+      const lines = contractChargeLines();
+      contractTotals = await chargeTotalsFor([
+        { key: 'vehicle', applies: true, qty: 1, amount: lines.rental },
+        ...lines.coverages.filter(c => c.accepted).map((c, i) => ({ key: `protection:${i}`, label: c.name, protection: true, applies: true, qty: lines.days, amount: c.price })),
+      ], customerSession?.reservation?.salesTaxes);
       buildContract();
       sizeCanvas();
       goTo('s6');
@@ -3635,6 +3659,31 @@
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''))) return iso || 'Not given';
       return new Date(`${iso}T12:00:00`).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
     };
+
+    // The charge lines on the agreement: the days from now, when the vehicle
+    // goes out, to the due back time, counted as fleetr.ai counts them (the
+    // database's count when it answered), the vehicle at the rates it was
+    // booked at or the daily rate times the days, and each coverage offered.
+    function contractChargeLines() {
+      const res   = customerSession?.reservation || {};
+      const to    = /^\d{4}-\d{2}-\d{2}$/.test(String(res.returnDate || '')) ? res.returnDate : null;
+      const due   = to ? new Date(`${to}T${/^\d{1,2}:\d{2}$/.test(String(res.returnTime || '')) ? String(res.returnTime).padStart(5, '0') : '23:59'}:00`) : null;
+      const days  = contractPrice?.price?.days
+        || (due ? Math.max(1, Math.ceil((due - Date.now()) / 86400000)) : 1);
+      const rate  = Number(res.dailyRate) || 0;
+      const rentalBreakdown = contractPrice?.price?.rental || null;
+      const vehicleLines = rentalBreakdown
+        ? rentalPriceLines(rentalBreakdown)
+        : [[dayLine(days, rate), rate * days]];
+      const coverages = vehicle?.switchPickup ? [] : (protectionOffer || []).map(p => ({
+        name: p.name, price: Number(p.pricePerDay) || 0, damage: isDamageProtection(p) ? DAMAGE_COVERED : '',
+        accepted: p.required || protectionAnswers[String(p.productId)]?.accepted === true,
+      }));
+      const rental = rentalBreakdown ? Number(rentalBreakdown.total) : rate * days;
+      const additional = coverages.filter(c => c.accepted)
+        .map(c => [`${c.name} (${days} day${days === 1 ? '' : 's'} × ${money(c.price)})`, c.price * days]);
+      return { days, rate, rentalBreakdown, vehicleLines, coverages, rental, additional };
+    }
 
     function buildContract() {
       const res   = customerSession?.reservation || {};
@@ -3659,40 +3708,12 @@
         return c;
       };
 
-      // Days from now, when the vehicle goes out, to the due back time,
-      // counted as fleetr.ai counts them: every 24 hours or part of them, at
-      // least one. The database's count when it answered.
       const today = new Date().toLocaleDateString('en-CA');
       const to    = /^\d{4}-\d{2}-\d{2}$/.test(String(res.returnDate || '')) ? res.returnDate : null;
-      const due   = to ? new Date(`${to}T${/^\d{1,2}:\d{2}$/.test(String(res.returnTime || '')) ? String(res.returnTime).padStart(5, '0') : '23:59'}:00`) : null;
-      const days  = contractPrice?.price?.days
-        || (due ? Math.max(1, Math.ceil((due - Date.now()) / 86400000)) : 1);
-      const rate  = Number(res.dailyRate) || 0;
-      // The vehicle's lines: the rates it was booked at, day by day, when it
-      // has them, or the daily rate times the days.
-      const rentalBreakdown = contractPrice?.price?.rental || null;
-      const vehicleLines = rentalBreakdown
-        ? rentalPriceLines(rentalBreakdown)
-        : [[dayLine(days, rate), rate * days]];
-
+      const { days, rate, rentalBreakdown, vehicleLines, coverages, additional } = contractChargeLines();
       const drivers = [readDriver('main'), ...extraDrivers];
-      const coverages = vehicle?.switchPickup ? [] : (protectionOffer || []).map(p => ({
-        name: p.name, price: Number(p.pricePerDay) || 0, damage: isDamageProtection(p) ? DAMAGE_COVERED : '',
-        accepted: p.required || protectionAnswers[String(p.productId)]?.accepted === true,
-      }));
-
-      const rental = rentalBreakdown ? Number(rentalBreakdown.total) : rate * days;
-      const additional = [
-        ...coverages.filter(c => c.accepted).map(c => [`${c.name} (${days} day${days === 1 ? '' : 's'} × ${money(c.price)})`, c.price * days]),
-      ];
-      const additionalTotal = additional.reduce((s, [, n]) => s + n, 0);
-      const subtotal = rental + additionalTotal;
-      // Each tax once, on the subtotal, to the cent, as the staff app's Close
-      // Rental works out final charges (chargeTotals in fleetr-internal).
-      const taxes = (Array.isArray(res.salesTaxes) ? res.salesTaxes : [])
-        .filter(t => t && String(t.name || '').trim() && Number(t.rate) > 0).slice(0, 2)
-        .map(t => [`${String(t.name).trim()} ${Number(t.rate)}%`, Math.round(subtotal * Number(t.rate)) / 100]);
-      const total = subtotal + taxes.reduce((s, [, n]) => s + n, 0);
+      // The subtotal, each tax and the total, from charge_totals.
+      const t = contractTotals;
 
       const summary = document.getElementById('contractSummary');
       summary.innerHTML = '';
@@ -3750,8 +3771,12 @@
         savings > 0 ? ['You save', money(savings)] : null,
       ]);
       group((additional.length ? additional : [['None', 0]]).map(([label, n]) => [label, money(n)]), 'Additional charges');
-      group([['Subtotal', money(subtotal)], ...taxes.map(([label, n]) => [label, money(n)])]);
-      group([['Total', money(total), true]]);
+      if (t) {
+        group([['Subtotal', money(t.subTotal)], ...t.allTaxLines.map(x => [x.label, money(x.amount)])]);
+        group([['Total', money(t.grandTotal), true]]);
+      } else {
+        group([['Total', 'Could not be worked out. Check your connection and go back, then try again.', true]]);
+      }
       summary.appendChild(charges);
 
       // The rental agreement, folded away until tapped: the fuel line, the
@@ -4212,11 +4237,12 @@
     // ════════════════════════════════════════════════════════════════════════
     // Estimated final charges, on the Return submitted screen
     // ════════════════════════════════════════════════════════════════════════
-    // Worked out the way Close Rental in the staff app works out final charges
+    // The lines worked out the way Close Rental in the staff app works them out
     // (fleetr-internal src/main.js): the functions below are its own, from
-    // DEFAULT_LINE_ITEMS to chargeTotals, run over what return_charge_estimate
-    // (fleetr-infra) reads from the agreement just returned. The company's fuel
-    // unit is passed in rather than read from its settings.
+    // DEFAULT_LINE_ITEMS to withFuelCharge, run over what return_charge_estimate
+    // (fleetr-infra) reads from the agreement just returned. What they come to
+    // is charge_totals', as everywhere. The company's fuel unit is passed in
+    // rather than read from its settings.
     const finalCharges = (() => {
       const L_PER_GAL = 3.785411784;
       const DEFAULT_LINE_ITEMS = [
@@ -4322,28 +4348,6 @@
 
       const lineItemAmount = (item) => (parseFloat(item.qty) || 0) * (parseFloat(item.amount) || 0);
 
-      function chargeTotals({ lineItems, salesTaxes, billToCategory }) {
-        const billToItems   = lineItems.filter((it) => !isProtectionLine(it) || it.coveredByBillTo);
-        const customerItems = lineItems.filter((it) => isProtectionLine(it) && !it.coveredByBillTo);
-        const sumLines      = (items) => items.reduce((s, it) => s + (it.applies ? lineItemAmount(it) : 0), 0);
-        const billToTotal   = sumLines(billToItems);
-        const customerTotal = sumLines(customerItems);
-        const taxLinesFor = (subtotal) => (salesTaxes || []).map((t) => ({
-          label: `${String(t.name).trim()} ${Number(t.rate)}%`,
-          amount: Math.round(subtotal * Number(t.rate)) / 100,
-        }));
-        const sumTax = (lines) => lines.reduce((s, l) => s + l.amount, 0);
-        const subTotal         = billToTotal + customerTotal;
-        const allTaxLines      = taxLinesFor(subTotal);
-        const billToTaxLines   = taxLinesFor(billToTotal);
-        const customerTaxLines = taxLinesFor(customerTotal);
-        const billToDue        = billToTotal + sumTax(billToTaxLines);
-        const customerDue      = customerTotal + sumTax(customerTaxLines);
-        const retail           = billToCategory === 'Retail';
-        const grandTotal       = retail ? subTotal + sumTax(allTaxLines) : billToDue + customerDue;
-        return { subTotal, allTaxLines, billToTaxLines, customerTaxLines, grandTotal };
-      }
-
       const BILL_TO = { retail: 'Retail', bodyshop_dealership: 'Bodyshop/Dealership', insurance: 'Insurance', corporate: 'Corporate' };
 
       // Close Rental's closeCharges, over return_charge_estimate's answer. The
@@ -4365,17 +4369,16 @@
           .filter((t) => t && String(t.name ?? '').trim() !== '' && Number(t.rate) > 0).slice(0, 2);
         const billToCategory = BILL_TO[d.billingType] || null;
         return {
-          lines, days, billToCategory,
+          lines, days, billToCategory, salesTaxes,
           extraDays: dayCount(d.bookedDays) ? Math.max(0, days - dayCount(d.bookedDays)) : 0,
-          totals: chargeTotals({ lineItems: lines, salesTaxes, billToCategory }),
         };
       }
 
       // The rows, as the receipt email lists them: the days, the extra days,
       // each charge with what it comes to, the subtotal, the taxes (each
-      // side's when someone else pays), then the total.
-      function rows(d) {
-        const e = estimate(d);
+      // side's when someone else pays), then the total. totals is what
+      // charge_totals gave for e's lines.
+      function rows(d, e, totals) {
         const rate = (n) => { const v = Number(n) || 0; return Math.round(v * 100) === v * 100 ? money(v) : `$${Math.round(v * 10000) / 10000}`; };
         const unit = (it) => it.key === 'gas' ? (d.fuelUnit === 'gal' ? ' gal' : ' L')
           : it.key === 'mileage' ? (d.distanceUnit === 'mi' ? ' mi' : ' km')
@@ -4384,7 +4387,7 @@
           const name = it.key === 'gas' ? 'Fuel' : String(it.label || 'Charge').trim();
           return [it.key === 'vehicle:cap' ? name : `${name}, ${it.qty}${unit(it)} at ${rate(it.amount)}`, money(lineItemAmount(it))];
         });
-        const t = e.totals;
+        const t = totals;
         const taxes = e.billToCategory === 'Retail' ? t.allTaxLines : [
           ...t.billToTaxLines.map((x) => ({ ...x, label: `${x.label} (bill-to)` })),
           ...t.customerTaxLines.filter((x) => x.amount).map((x) => ({ ...x, label: `${x.label} (customer)` })),
@@ -4418,7 +4421,12 @@
       }
       if (!d) return;
       let list;
-      try { list = finalCharges.rows(d); } catch (e) { console.warn('estimate could not be worked out:', e); return; }
+      try {
+        const e = finalCharges.estimate(d);
+        const totals = await chargeTotalsFor(e.lines, e.salesTaxes, e.billToCategory);
+        if (!totals) return;
+        list = finalCharges.rows(d, e, totals);
+      } catch (e) { console.warn('estimate could not be worked out:', e); return; }
       list.forEach(([label, value]) => {
         const r = document.createElement('div');
         r.className = 'done-row';
@@ -4951,12 +4959,13 @@
         }
         const p = data.price;
         const taxes = p && p.total != null ? await taxesByLink(proof) : null;
+        const totals = p && p.total != null ? await taxedEstimate(p.total, taxes) : null;
         view({ title: 'Pickup time changed',
           subtitle: `Your reservation${current && current.company ? ` with ${current.company}` : ''} has been changed. We will text you the new times.` });
         summaryRows([
           ['New pickup', fmtWhen(data.pickup)],
           ['New return', fmtWhen(data.return)],
-          ...(p && p.total != null ? estimateRows(p.total, taxes) : []),
+          ...(p && p.total != null ? estimateRows(p.total, totals) : []),
         ]);
       });
 
@@ -5266,14 +5275,16 @@
         }
         const p = data.price, was = data.was;
         const taxes = p && p.total != null ? await taxesByLink(proof) : null;
-        // The difference between the two totals, each taxed the same way.
-        const withTax = (n) => (Array.isArray(taxes) ? taxedEstimate(n, taxes).total : Number(n));
+        const totals = p && p.total != null ? await taxedEstimate(p.total, taxes) : null;
+        // The difference between the two totals, each from charge_totals.
+        const wasTotals = totals && was && was.total != null ? await taxedEstimate(was.total, taxes) : null;
+        const withTax = (n, t) => (totals && t ? Number(t.grandTotal) : Number(n));
         view({ title: 'Rental extended',
           subtitle: `Your rental is now due back ${fmtWhen(data.return)}. We will text you to confirm.` });
         summaryRows(sumEl, [
           ['New return', fmtWhen(data.return)],
-          ...(p && p.total != null ? estimateRows(p.total, taxes) : []),
-          ['Difference', p && p.total != null && was && was.total != null ? `${money(Math.max(0, withTax(p.total) - withTax(was.total)))} more` : ''],
+          ...(p && p.total != null ? estimateRows(p.total, totals) : []),
+          ['Difference', p && p.total != null && was && was.total != null ? `${money(Math.max(0, withTax(p.total, totals) - withTax(was.total, wasTotals)))} more` : ''],
         ]);
       });
 

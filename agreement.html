@@ -217,19 +217,18 @@
       }
 
       // The estimated charges, as the agreement email shows them: the rental
-      // and the protection before tax (renter_email_agreement_charges), each
-      // tax on them once, to the cent, then the total.
+      // and the protection before tax (renter_email_agreement_charges), then
+      // the subtotal, each tax and the total as charge_totals worked them out.
       const c = a.charges && typeof a.charges === 'object' ? a.charges : null;
+      const tot = a.totals && typeof a.totals === 'object' ? a.totals : null;
       const rental = Number(c?.rental), protection = Number(c?.protection) || 0, days = Number(c?.days);
-      if (c && Number.isFinite(rental) && Number.isInteger(days) && days > 0) {
-        const subtotal = Math.round((rental + protection) * 100) / 100;
-        const taxLines = taxes.slice(0, 2).map((t) => ({ label: `${String(t.name).trim()} ${Number(t.rate)}%`, amount: Math.round(subtotal * Number(t.rate)) / 100 }));
+      if (c && tot && Number.isFinite(rental) && Number.isInteger(days) && days > 0) {
         section('Estimated charges');
         row(`Rental, ${days} day${days === 1 ? '' : 's'}`, money(rental));
         row('Protection', protection > 0 ? money(protection) : 'None');
-        row('Before tax', money(subtotal));
-        taxLines.forEach((t) => row(t.label, money(t.amount)));
-        row('Estimated total', money(subtotal + taxLines.reduce((s, t) => s + t.amount, 0)));
+        row('Before tax', money(tot.subTotal));
+        (Array.isArray(tot.allTaxLines) ? tot.allTaxLines : []).forEach((t) => row(t.label, money(t.amount)));
+        row('Estimated total', money(tot.grandTotal));
         card.lastChild.classList.add('total');
       }
 
