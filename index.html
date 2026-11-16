@@ -1673,6 +1673,8 @@
     let returnDamageDescription  = '';
     let returnVehicleLocation    = '';
 
+    // Days count every started 24 hours with a 29-minute grace (booking_days).
+    const DAY_GRACE_MS = 29 * 60000;
     const FUEL_LABELS = ['Empty', '⅛', '¼', '⅜', '½', '⅝', '¾', '⅞', 'Full'];
     // How a level reads on screen. The labels above are what the database keeps.
     const FUEL_FRACTIONS = { '⅛': '1/8', '¼': '1/4', '⅜': '3/8', '½': '1/2', '⅝': '5/8', '¾': '3/4', '⅞': '7/8' };
@@ -3762,7 +3764,7 @@
       const to    = /^\d{4}-\d{2}-\d{2}$/.test(String(res.returnDate || '')) ? res.returnDate : null;
       const due   = to ? new Date(`${to}T${/^\d{1,2}:\d{2}$/.test(String(res.returnTime || '')) ? String(res.returnTime).padStart(5, '0') : '23:59'}:00`) : null;
       const days  = contractPrice?.price?.days
-        || (due ? Math.max(1, Math.ceil((due - Date.now()) / 86400000)) : 1);
+        || (due ? Math.max(1, Math.ceil((due - Date.now() - DAY_GRACE_MS) / 86400000)) : 1);
       const rate  = Number(res.dailyRate) || 0;
       const rentalBreakdown = contractPrice?.price?.rental || null;
       const vehicleLines = rentalBreakdown
@@ -3827,7 +3829,9 @@
 
       summary.appendChild(card('Rental', [
         ['Out', longDate(today)],
-        ['Due', to ? longDate(to) : ''],
+        // The due-back the price was worked out to: picked up early, the booked
+        // days stand and it moves earlier by as much (rental_price_by_link).
+        ['Due', contractPrice?.return ? dueText(contractPrice.return, true) : to ? longDate(to) : ''],
         ['Daily rate', money(rate)],
       ]));
 
@@ -4870,7 +4874,7 @@
         return `${day} at ${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
       };
       const money = (n) => `$${Number(n).toFixed(2)}`;
-      const daysBetween = (a, b) => Math.max(1, Math.ceil((b - a) / 86400000));
+      const daysBetween = (a, b) => Math.max(1, Math.ceil((b - a - DAY_GRACE_MS) / 86400000));
 
       let proof = null;        // { code, last }: what both calls are given
       let current = null;      // what reschedule_lookup returned
@@ -5142,7 +5146,7 @@
       };
       const money = (n) => `$${Number(n).toFixed(2)}`;
       // Days counted as fleetr.ai counts them (booking_days).
-      const daysBetween = (a, b) => Math.max(1, Math.ceil((b - a) / 86400000));
+      const daysBetween = (a, b) => Math.max(1, Math.ceil((b - a - DAY_GRACE_MS) / 86400000));
       const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
       const toMins = (hm) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(hm || '')); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
 
