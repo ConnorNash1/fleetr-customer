@@ -3017,7 +3017,11 @@
           damageList.innerHTML     = '';
           damageList.style.display = 'none';
           noDamageMsg.style.display = 'block';
+          // "The following damage has been documented" with none below it
+          // read wrong: at pickup it shows only when there is some.
+          if (flowType !== 'return' && noDamageMsg.id === 'noDamageMsg') document.getElementById('s2InfoBox').style.display = 'none';
         } else {
+          document.getElementById('s2InfoBox').style.display = '';
           damageList.innerHTML     = damage.map(d => `<li>${d}</li>`).join('');
           damageList.style.display = 'block';
           noDamageMsg.style.display = 'none';
@@ -3089,6 +3093,7 @@
       });
       damageList.style.display = 'block';
       noDamageMsg.style.display = 'none';
+      if (noneId === 'noDamageMsg') document.getElementById('s2InfoBox').style.display = '';
     }
 
     document.getElementById('s2Btn').addEventListener('click', () => goTo('s4'));
@@ -3835,12 +3840,13 @@
         ['Daily rate', money(rate)],
       ]));
 
+      // One line under the Coverages heading, not "Coverages" twice.
       summary.appendChild(card('Coverages', vehicle?.switchPickup
-        ? [['Coverages', 'As on your rental agreement']]
-        : insuranceShown() ? [['Coverages', 'Your own insurance']]
+        ? [['Cover', 'As on your rental agreement']]
+        : insuranceShown() ? [['Cover', 'Your own insurance']]
         : coverages.length
           ? coverages.map(c => [c.name, c.accepted ? `${money(c.price)} per day` : 'Declined'])
-          : [['Coverages', 'None offered']]));
+          : [['Cover', 'None offered']]));
 
       const damage = coverages.filter(c => c.accepted && c.damage);
       if (damage.length) summary.appendChild(card('What you pay for damage', damage.map(c => [c.name, c.damage])));
