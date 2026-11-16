@@ -1488,6 +1488,18 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
+         Paid: back from a Stripe payment link, a receipt of its own
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="sPaid">
+      <div class="spacer"></div>
+      <div class="done-icon"><svg class="done-tick" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30"/><path d="M20 33l8.5 8.5L44 25"/></svg></div>
+      <h1>You're all set</h1>
+      <p class="subtitle" id="paidText">Your payment went through.</p>
+      <div class="done-summary" id="paidSummary" data-ticket="Receipt" hidden></div>
+      <div class="spacer"></div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
          Cancel a reservation, opened from the link in a text (#c=token)
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="sCancel">
@@ -1709,7 +1721,7 @@
     // is offered. sCar is in the return too, for when the plate is asked for.
     const PICKUP_SCREENS = ['sFind','s1','sDriver','sCar','s2','s4','sProt','sIns','s6','s7'];
     const RETURN_SCREENS = ['sFind','sOut','sCar','s8','s9','s9b','s10','s10b','s11'];
-    const ALL_SCREENS    = ['sFind','sOut','s1','sDriver','sProt','sIns','sCar','s2','s4','s6','s7','s8','s9','s9b','s10','s10b','s11','sCancel','sResched','sExtend'];
+    const ALL_SCREENS    = ['sFind','sOut','s1','sDriver','sProt','sIns','sCar','s2','s4','s6','s7','s8','s9','s9b','s10','s10b','s11','sPaid','sCancel','sResched','sExtend'];
 
     // A field typed into on the screen being left keeps the focus, and the
     // iPhone keyboard with it, after its screen is hidden. iPhone Safari then
@@ -2207,12 +2219,31 @@
       payBalanceBtn.disabled = false;
       payBalanceBtn.textContent = 'Pay by card';
     });
-    // Back from a paid link.
-    if (new URLSearchParams(location.search).get('paid') === '1') {
-      payBalanceTitle.textContent = 'Payment received';
-      payBalanceText.textContent = 'Thank you. Your payment went through, and the rental company has it.';
-      payBalanceChoices.hidden = true;
-      payBalance.hidden = false;
+    // Back from a paid link: the amount and the company it was paid to, as
+    // the link's return address has them. Null when not back from one.
+    function paidReceipt(search) {
+      const q = new URLSearchParams(search);
+      if (q.get('paid') !== '1') return null;
+      const n = Number(q.get('amount'));
+      return { amount: Number.isFinite(n) && n > 0 ? `$${n.toFixed(2)}` : '', company: String(q.get('company') || '').trim().slice(0, 120) };
+    }
+    // A receipt of its own, not the check-in screen.
+    const paid = paidReceipt(location.search);
+    if (paid) {
+      document.getElementById('paidText').textContent = paid.amount && paid.company
+        ? `Your payment of ${paid.amount} to ${paid.company} went through.`
+        : paid.amount ? `Your payment of ${paid.amount} went through.` : 'Your payment went through.';
+      const box = document.getElementById('paidSummary');
+      [['Amount paid', paid.amount], ['Paid to', paid.company]].filter(([, v]) => v).forEach(([label, value]) => {
+        const r = document.createElement('div');
+        r.className = 'done-row';
+        const l = document.createElement('span'); l.className = 'dr-label'; l.textContent = label;
+        const v = document.createElement('span'); v.className = 'dr-value'; v.textContent = value;
+        r.append(l, v);
+        box.appendChild(r);
+      });
+      box.hidden = !box.children.length;
+      goTo('sPaid');
       history.replaceState(null, '', location.pathname + location.hash);
     }
 
