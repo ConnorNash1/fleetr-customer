@@ -1409,9 +1409,9 @@
       <button class="return-back-btn" id="s9Back">Back</button>
       <h1>Fuel level</h1>
 
-      <label>Fuel level</label>
+      <label for="returnFuelRange">Fuel level</label>
       <div class="fuel-value" id="returnFuelValueLabel">Full</div>
-      <input type="range" id="returnFuelRange" min="0" max="8" value="8" step="1" />
+      <input type="range" id="returnFuelRange" min="0" max="8" value="8" step="1" aria-valuetext="Full" />
       <div class="fuel-labels">
         <span>Empty</span><span>1/4</span><span>1/2</span><span>3/4</span><span>Full</span>
       </div>
@@ -2647,6 +2647,7 @@
         const rfr = document.getElementById('returnFuelRange');
         rfr.value = '8';
         document.getElementById('returnFuelValueLabel').textContent    = fuelText(FUEL_LABELS[8]);
+        rfr.setAttribute('aria-valuetext', fuelText(FUEL_LABELS[8]));
         document.getElementById('returnFuelPreview').style.display     = 'none';
         document.getElementById('returnFuelPreview').src               = '';
         document.getElementById('s10Error').textContent                = '';
@@ -4254,6 +4255,8 @@
     returnFuelRange.addEventListener('input', () => {
       returnFuelLevel = parseInt(returnFuelRange.value);
       returnFuelLabel.textContent = fuelText(FUEL_LABELS[returnFuelLevel]);
+      // Read aloud as the gauge reads, "1/4", not the slider's step "2".
+      returnFuelRange.setAttribute('aria-valuetext', returnFuelLabel.textContent);
     });
 
     // Live camera only; see openLiveCamera. Taking it again replaces it.
