@@ -3031,12 +3031,15 @@
     // read, the notes shown already stay.
     const VEHICLE_DAMAGE_URL = 'https://fleetr-ai-proxy.connor-0a5.workers.dev/checkin/vehicle-damage';
     let damageAsked = 0;
-    async function loadVehicleDamage(v, fallback) {
+    // listId and noneId: the pickup's Pre-existing damage list by default, or
+    // the return's Previous damage list, which showed only the plate lookup's
+    // notes and said there was none when the pickup had just listed some.
+    async function loadVehicleDamage(v, fallback, { listId = 'damageList', noneId = 'noDamageMsg' } = {}) {
       const proof = customerSession?.proof;
       if (!v?.id || !proof?.code) return;
       const asked = ++damageAsked;
-      const damageList  = document.getElementById('damageList');
-      const noDamageMsg = document.getElementById('noDamageMsg');
+      const damageList  = document.getElementById(listId);
+      const noDamageMsg = document.getElementById(noneId);
       let out = null;
       try {
         const res = await fetch(VEHICLE_DAMAGE_URL, {
@@ -4276,18 +4279,25 @@
     // ════════════════════════════════════════════════════════════════════════
     // Screen 9b: Return · Step 3 of 5 · Previous Damage on Record
     // ════════════════════════════════════════════════════════════════════════
+    // The plate lookup's notes at once, then every damage record on the
+    // vehicle, as the pickup's Pre-existing damage screen shows them.
     function buildReturnPrevDamageScreen() {
       const damage      = Array.isArray(vehicle?.damage) ? vehicle.damage : [];
       const listEl      = document.getElementById('returnPrevDamageList');
       const noDamageEl  = document.getElementById('returnNoDamageMsg');
-      if (damage.length === 0) {
-        listEl.style.display     = 'none';
-        noDamageEl.style.display = 'block';
-      } else {
-        listEl.innerHTML         = damage.map(d => `<li>${d}</li>`).join('');
-        listEl.style.display     = 'block';
-        noDamageEl.style.display = 'none';
-      }
+      const showNotes = () => {
+        if (damage.length === 0) {
+          listEl.innerHTML         = '';
+          listEl.style.display     = 'none';
+          noDamageEl.style.display = 'block';
+        } else {
+          listEl.innerHTML         = damage.map(d => `<li>${d}</li>`).join('');
+          listEl.style.display     = 'block';
+          noDamageEl.style.display = 'none';
+        }
+      };
+      showNotes();
+      loadVehicleDamage(vehicle, showNotes, { listId: 'returnPrevDamageList', noneId: 'returnNoDamageMsg' });
     }
 
     document.getElementById('s9bBack').addEventListener('click', () => goTo('s9'));
