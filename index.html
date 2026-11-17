@@ -1030,8 +1030,8 @@
         <div class="protection-card__name">Cancel this booking?</div>
         <p class="protection-card__wording">This can't be undone. You'd need to book again to rent.</p>
         <div class="protection-card__choices">
-          <button type="button" class="btn btn-danger" id="cancelYesBtn">Yes, cancel booking</button>
-          <button type="button" class="btn btn-secondary" id="cancelNoBtn">Keep my booking</button>
+          <button type="button" class="btn btn-danger" id="findCancelYesBtn">Yes, cancel booking</button>
+          <button type="button" class="btn btn-secondary" id="findCancelNoBtn">Keep my booking</button>
         </div>
       </div>
       <div class="protection-card" id="cancelDone" hidden>
@@ -2370,13 +2370,13 @@
       document.getElementById('cancelConfirm').hidden = false;
       showFindActions(false);
     });
-    document.getElementById('cancelNoBtn').addEventListener('click', () => {
+    document.getElementById('findCancelNoBtn').addEventListener('click', () => {
       document.getElementById('cancelConfirm').hidden = true;
       findError.textContent = '';
       showFindActions(true);
     });
-    document.getElementById('cancelYesBtn').addEventListener('click', async () => {
-      const btn = document.getElementById('cancelYesBtn');
+    document.getElementById('findCancelYesBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('findCancelYesBtn');
       const proof = findProof();
       btn.disabled = true;
       findError.textContent = '';
