@@ -1105,8 +1105,8 @@
         <div class="protection-card__name">Cancel this booking?</div>
         <p class="protection-card__wording">This can't be undone. You'd need to book again to rent.</p>
         <div class="protection-card__choices">
-          <button type="button" class="btn btn-danger" id="cancelYesBtn">Yes, cancel booking</button>
-          <button type="button" class="btn btn-secondary" id="cancelNoBtn">Keep my booking</button>
+          <button type="button" class="btn btn-danger" id="findCancelYesBtn">Yes, cancel booking</button>
+          <button type="button" class="btn btn-secondary" id="findCancelNoBtn">Keep my booking</button>
         </div>
       </div>
       <div class="protection-card" id="cancelDone" hidden>
@@ -2542,13 +2542,13 @@
       document.getElementById('cancelConfirm').hidden = false;
       showFindActions(false);
     });
-    document.getElementById('cancelNoBtn').addEventListener('click', () => {
+    document.getElementById('findCancelNoBtn').addEventListener('click', () => {
       document.getElementById('cancelConfirm').hidden = true;
       findError.textContent = '';
       showFindActions(true);
     });
-    document.getElementById('cancelYesBtn').addEventListener('click', async () => {
-      const btn = document.getElementById('cancelYesBtn');
+    document.getElementById('findCancelYesBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('findCancelYesBtn');
       const proof = findProof();
       btn.disabled = true;
       findError.textContent = '';
@@ -4883,7 +4883,14 @@
       };
       const fmtCancelTime = (time, meridiem) => {
         const t = String(time || '').trim();
-        return !t ? '' : /[ap]m/i.test(t) || !meridiem ? t : `${t} ${meridiem}`;
+        if (!t || /[ap]m/i.test(t)) return t;
+        if (meridiem) return `${t} ${meridiem}`;
+        // 24-hour, as fleetr.ai bookings store it: shown as 9:00 AM, the
+        // same as the booking text and every other screen.
+        const hm = /^(\d{1,2}):(\d{2})$/.exec(t);
+        if (!hm) return t;
+        const h = Number(hm[1]);
+        return h > 23 ? t : `${h % 12 || 12}:${hm[2]} ${h < 12 ? 'AM' : 'PM'}`;
       };
 
       let shown = null; // the reservation on screen, for the wording after a cancel
@@ -5006,7 +5013,12 @@
       findLastNameEl.value = String(r.lastName || '').trim() || String(r.customer || '').trim().replace(/^.*\s/, '');
       if (appWantsCard) {
         startSession(found, token, '');
-        if (!(await showCardScreen('standalone'))) findError.textContent = 'This rental company does not take saved cards. You can pay at the counter.';
+        // startSession has already moved on to the license step; a company
+        // that takes no saved cards brings the renter back here to read why.
+        if (!(await showCardScreen('standalone'))) {
+          goTo('sFind');
+          findError.textContent = 'This rental company does not take saved cards. You can pay at the counter when you pick up.';
+        }
       }
     }
 
