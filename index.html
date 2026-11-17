@@ -27,17 +27,49 @@
     /* The terracotta theme the staff app uses. Terracotta is the only accent
        and marks actions and active states; cards and fields are white on the
        warm paper, with lines and quiet text drawn from the ink. */
+    /* fleetr design tokens 1.0. The same block sits in the staff app, check-in,
+       fleetr.ai and HQ (design_tokens.test.mjs keeps them identical). Colour is
+       built around the logo's terracotta, which itself never changes. */
+    :root{
+      --fl-paper: #F9F9F7; --fl-surface: #FFFFFF; --fl-sunken: #F1F0EC; --fl-hover: #F4F3EF;
+      --fl-ink: #1F1E1D; --fl-ink-2: #4A4946; --fl-ink-3: #6B6A66; --fl-ink-4: #8A8984;
+      --fl-line: rgba(31, 30, 29, 0.12); --fl-line-soft: rgba(31, 30, 29, 0.07); --fl-line-strong: rgba(31, 30, 29, 0.24);
+      --fl-brand: #F4845F; --fl-brand-hover: #EE7550; --fl-brand-press: #E06D47; --fl-on-brand: #1F1E1D;
+      --fl-brand-text: #B4532F; --fl-brand-soft: rgba(244, 132, 95, 0.14); --fl-brand-wash: rgba(244, 132, 95, 0.07);
+      --fl-success: #17683F; --fl-success-soft: #E3F4EA; --fl-warning: #8A5100; --fl-warning-soft: #FDF1DC;
+      --fl-danger: #B42318; --fl-danger-soft: #FDE8E6; --fl-info: #2557A7; --fl-info-soft: #E6EEFB;
+      --fl-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --fl-text-xs: 12px; --fl-text-sm: 13px; --fl-text-base: 15px; --fl-text-md: 17px;
+      --fl-text-lg: 20px; --fl-text-xl: 24px; --fl-text-2xl: 30px; --fl-text-3xl: 40px;
+      --fl-leading-tight: 1.2; --fl-leading: 1.5; --fl-tracking-tight: -0.02em;
+      --fl-space-1: 4px; --fl-space-2: 8px; --fl-space-3: 12px; --fl-space-4: 16px; --fl-space-5: 20px;
+      --fl-space-6: 24px; --fl-space-7: 32px; --fl-space-8: 40px; --fl-space-9: 48px; --fl-space-10: 64px;
+      --fl-radius-sm: 6px; --fl-radius: 10px; --fl-radius-lg: 14px; --fl-radius-xl: 20px; --fl-radius-pill: 999px;
+      --fl-shadow-xs: 0 1px 2px rgba(31, 30, 29, 0.05);
+      --fl-shadow-sm: 0 1px 2px rgba(31, 30, 29, 0.06), 0 2px 8px rgba(31, 30, 29, 0.05);
+      --fl-shadow-md: 0 2px 4px rgba(31, 30, 29, 0.06), 0 10px 28px rgba(31, 30, 29, 0.10);
+      --fl-shadow-lg: 0 4px 8px rgba(31, 30, 29, 0.06), 0 24px 64px rgba(31, 30, 29, 0.18);
+      --fl-ring: 0 0 0 3px rgba(244, 132, 95, 0.35);
+      --fl-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1); --fl-ease-in: cubic-bezier(0.4, 0, 1, 1);
+      --fl-dur-fast: 120ms; --fl-dur: 180ms; --fl-dur-slow: 280ms;
+      --fl-tap: 44px;
+    }
+    @media (prefers-reduced-motion: reduce){
+      :root{ --fl-dur-fast: 0ms; --fl-dur: 0ms; --fl-dur-slow: 0ms; }
+    }
+    /* end fleetr design tokens */
+
     :root {
       --paper:      #F9F9F7;
       --card:       #FFFFFF;
       --surface:    #FFFFFF;
-      --line:       rgba(31, 30, 29, 0.12);
+      --line:       var(--fl-line);
       --muted:      rgba(31, 30, 29, 0.62);
       --body:       rgba(31, 30, 29, 0.74);
       --ink:        #1F1E1D;
       --terra:      #F4845F;
       --terra-dk:   #EE7550;
-      --terra-text: #C9603D;
+      --terra-text: var(--fl-brand-text);
       --terra-soft: rgba(244, 132, 95, 0.14);
       --shadow:    0 1px 2px rgba(31, 30, 29, 0.06), 0 8px 24px rgba(31, 30, 29, 0.08);
       --tactile:   inset 0 -3px 0 rgba(31, 30, 29, 0.16), 0 1px 2px rgba(31, 30, 29, 0.12);
@@ -56,7 +88,7 @@
       -webkit-tap-highlight-color: transparent;
       overscroll-behavior: none;
     }
-    ::selection { background: var(--line); }
+    ::selection { background: var(--fl-brand-soft); }
 
     /* ── Progress bar ─────────────────────────────────────────── */
     .progress-bar {
@@ -1003,6 +1035,18 @@
     input:autofill, textarea:autofill, select:autofill{ box-shadow: 0 0 0 1000px #F9F9F7 inset; color: #1F1E1D; }
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([readonly]):focus,
     textarea:not([readonly]):focus{ outline: none; border-color: #F4845F; }
+    /* fleetr design system 1.0, the shared layer: brand text that reads at
+       4.5:1, one keyboard focus ring, a press state on every button, and motion
+       that stops when the device asks for less. */
+    ::selection{ background: var(--fl-brand-soft); }
+    button, a, [role="button"]{ -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    [data-keys] :focus-visible, .fl-kbd :focus-visible{ outline: none; box-shadow: var(--fl-ring); }
+    .flPress:active, button:not(:disabled):active{ transition: transform var(--fl-dur-fast) var(--fl-ease-out); }
+    @media (prefers-reduced-motion: reduce){
+      *, *::before, *::after{ animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+    }
+    /* end fleetr design system shared layer */
+
   </style>
 </head>
 <body>
