@@ -27,17 +27,49 @@
     /* The terracotta theme the staff app uses. Terracotta is the only accent
        and marks actions and active states; cards and fields are white on the
        warm paper, with lines and quiet text drawn from the ink. */
+    /* fleetr design tokens 1.0. The same block sits in the staff app, check-in,
+       fleetr.ai and HQ (design_tokens.test.mjs keeps them identical). Colour is
+       built around the logo's terracotta, which itself never changes. */
+    :root{
+      --fl-paper: #F9F9F7; --fl-surface: #FFFFFF; --fl-sunken: #F1F0EC; --fl-hover: #F4F3EF;
+      --fl-ink: #1F1E1D; --fl-ink-2: #4A4946; --fl-ink-3: #6B6A66; --fl-ink-4: #8A8984;
+      --fl-line: rgba(31, 30, 29, 0.12); --fl-line-soft: rgba(31, 30, 29, 0.07); --fl-line-strong: rgba(31, 30, 29, 0.24);
+      --fl-brand: #F4845F; --fl-brand-hover: #EE7550; --fl-brand-press: #E06D47; --fl-on-brand: #1F1E1D;
+      --fl-brand-text: #B4532F; --fl-brand-soft: rgba(244, 132, 95, 0.14); --fl-brand-wash: rgba(244, 132, 95, 0.07);
+      --fl-success: #17683F; --fl-success-soft: #E3F4EA; --fl-warning: #8A5100; --fl-warning-soft: #FDF1DC;
+      --fl-danger: #B42318; --fl-danger-soft: #FDE8E6; --fl-info: #2557A7; --fl-info-soft: #E6EEFB;
+      --fl-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --fl-text-xs: 12px; --fl-text-sm: 13px; --fl-text-base: 15px; --fl-text-md: 17px;
+      --fl-text-lg: 20px; --fl-text-xl: 24px; --fl-text-2xl: 30px; --fl-text-3xl: 40px;
+      --fl-leading-tight: 1.2; --fl-leading: 1.5; --fl-tracking-tight: -0.02em;
+      --fl-space-1: 4px; --fl-space-2: 8px; --fl-space-3: 12px; --fl-space-4: 16px; --fl-space-5: 20px;
+      --fl-space-6: 24px; --fl-space-7: 32px; --fl-space-8: 40px; --fl-space-9: 48px; --fl-space-10: 64px;
+      --fl-radius-sm: 6px; --fl-radius: 10px; --fl-radius-lg: 14px; --fl-radius-xl: 20px; --fl-radius-pill: 999px;
+      --fl-shadow-xs: 0 1px 2px rgba(31, 30, 29, 0.05);
+      --fl-shadow-sm: 0 1px 2px rgba(31, 30, 29, 0.06), 0 2px 8px rgba(31, 30, 29, 0.05);
+      --fl-shadow-md: 0 2px 4px rgba(31, 30, 29, 0.06), 0 10px 28px rgba(31, 30, 29, 0.10);
+      --fl-shadow-lg: 0 4px 8px rgba(31, 30, 29, 0.06), 0 24px 64px rgba(31, 30, 29, 0.18);
+      --fl-ring: 0 0 0 3px rgba(244, 132, 95, 0.35);
+      --fl-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1); --fl-ease-in: cubic-bezier(0.4, 0, 1, 1);
+      --fl-dur-fast: 120ms; --fl-dur: 180ms; --fl-dur-slow: 280ms;
+      --fl-tap: 44px;
+    }
+    @media (prefers-reduced-motion: reduce){
+      :root{ --fl-dur-fast: 0ms; --fl-dur: 0ms; --fl-dur-slow: 0ms; }
+    }
+    /* end fleetr design tokens */
+
     :root {
       --paper:      #F9F9F7;
       --card:       #FFFFFF;
       --surface:    #FFFFFF;
-      --line:       rgba(31, 30, 29, 0.12);
+      --line:       var(--fl-line);
       --muted:      rgba(31, 30, 29, 0.62);
       --body:       rgba(31, 30, 29, 0.74);
       --ink:        #1F1E1D;
       --terra:      #F4845F;
       --terra-dk:   #EE7550;
-      --terra-text: #C9603D;
+      --terra-text: var(--fl-brand-text);
       --terra-soft: rgba(244, 132, 95, 0.14);
       --shadow:    0 1px 2px rgba(31, 30, 29, 0.06), 0 8px 24px rgba(31, 30, 29, 0.08);
       --tactile:   inset 0 -3px 0 rgba(31, 30, 29, 0.16), 0 1px 2px rgba(31, 30, 29, 0.12);
@@ -56,7 +88,7 @@
       -webkit-tap-highlight-color: transparent;
       overscroll-behavior: none;
     }
-    ::selection { background: var(--line); }
+    ::selection { background: var(--fl-brand-soft); }
 
     /* ── Progress bar ─────────────────────────────────────────── */
     .progress-bar {
@@ -1003,6 +1035,47 @@
     input:autofill, textarea:autofill, select:autofill{ box-shadow: 0 0 0 1000px #F9F9F7 inset; color: #1F1E1D; }
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([readonly]):focus,
     textarea:not([readonly]):focus{ outline: none; border-color: #F4845F; }
+    /* Save a card */
+    .card-saved { margin: 4px 0 16px; padding: 14px 16px; border-radius: 12px; background: var(--fl-success-soft); color: var(--fl-success); font-weight: 600; }
+    .card-element { min-height: 160px; margin: 8px 0 12px; }
+    .card-skeleton { height: 160px; border-radius: 12px; background: linear-gradient(90deg, var(--fl-sunken), #F8F7F4, var(--fl-sunken)); background-size: 200% 100%; animation: cardShimmer 1.4s ease-in-out infinite; }
+    @keyframes cardShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+    .card-note { font-size: 0.85rem; color: var(--muted); line-height: 1.5; margin: 0 0 8px; }
+    /* ── The frame (overnight-nov17) ──────────────────────────────
+       Every screen: Back pinned at the top while it scrolls, and the main
+       button pinned in thumb reach at the bottom of a long screen. On a
+       computer the flow sits as a card in the middle of the page. */
+    .find-title { margin-top: 4px; }
+    .find-lead { margin-bottom: 28px; }
+    .screen > .return-back-btn {
+      position: sticky; top: 0; z-index: 20;
+      margin: -12px -24px 6px; padding: 12px 24px 12px; width: calc(100% + 48px);
+      background: rgba(249, 249, 247, 0.92); -webkit-backdrop-filter: saturate(1.4) blur(10px); backdrop-filter: saturate(1.4) blur(10px);
+      min-height: 44px; display: flex; align-items: center; gap: 6px;
+    }
+    .screen > .return-back-btn::before { content: ""; width: 9px; height: 9px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); margin-right: 4px; }
+    .screen > .spacer ~ .btn-primary {
+      position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 15;
+    }
+    @media (min-width: 768px) {
+      body { background: var(--fl-sunken); }
+      .app { margin: 40px auto; min-height: auto; background: var(--fl-paper); border: 1px solid var(--fl-line); border-radius: var(--fl-radius-xl); box-shadow: var(--fl-shadow-md); overflow: clip; }
+      .screen { min-height: min(820px, calc(100dvh - 80px)); padding: 48px 40px 40px; }
+      .screen > .return-back-btn { margin: -36px -40px 6px; padding: 16px 40px; width: calc(100% + 80px); }
+    }
+
+    /* fleetr design system 1.0, the shared layer: brand text that reads at
+       4.5:1, one keyboard focus ring, a press state on every button, and motion
+       that stops when the device asks for less. */
+    ::selection{ background: var(--fl-brand-soft); }
+    button, a, [role="button"]{ -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    [data-keys] :focus-visible, .fl-kbd :focus-visible{ outline: none; box-shadow: var(--fl-ring); }
+    .flPress:active, button:not(:disabled):active{ transition: transform var(--fl-dur-fast) var(--fl-ease-out); }
+    @media (prefers-reduced-motion: reduce){
+      *, *::before, *::after{ animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+    }
+    /* end fleetr design system shared layer */
+
   </style>
 </head>
 <body>
@@ -1019,6 +1092,8 @@
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen active" id="sFind">
       <img class="logo" src="/fleetr-logo-terracotta-on-white.svg" alt="fleetr" />
+      <h1 class="find-title">Check in for your rental</h1>
+      <p class="subtitle find-lead">Enter the code from your booking text and the last name on it. After this, pickup takes a minute.</p>
       <label for="resCodeInput">Reservation code</label>
       <input type="text" id="resCodeInput" placeholder="ABC 123 456"
              autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
@@ -1348,6 +1423,24 @@
     <!-- ═══════════════════════════════════════════════════════════
          Screen 6: Digital Signature
     ═══════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════
+         Save a card (card on file, overnight-nov17): kept by Stripe on
+         the rental company's own account, held at pickup and charged at
+         return. Card details go straight to Stripe, never to fleetr.
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="sCard">
+      <button class="return-back-btn" id="sCardBack">Back</button>
+      <h1>Save a card for your rental</h1>
+      <p class="subtitle" id="sCardLead">So pickup and return take no time at the counter. We hold your rental's estimate at pickup and charge the final total when you return it.</p>
+      <div class="card-saved" id="sCardSaved" hidden></div>
+      <div class="card-form" id="sCardForm"><div class="card-element" id="cardElement"><div class="card-skeleton"></div></div></div>
+      <p class="card-note" id="sCardNote">Your card details go straight to Stripe, the payments company. The rental company never sees your full number.</p>
+      <div class="spacer"></div>
+      <div class="error-msg" id="sCardError" role="alert"></div>
+      <button class="btn btn-primary" id="sCardSave">Save card</button>
+      <button class="btn btn-ghost" id="sCardSkip">Not now</button>
+    </div>
+
     <div class="screen" id="s6">
       <button class="return-back-btn" id="s6Back">Back</button>
       <h1>Review and sign</h1>
@@ -1721,9 +1814,9 @@
     // ── Screen routing ────────────────────────────────────────────────────────
     // One task a screen, in order. Protection is counted only when something
     // is offered. sCar is in the return too, for when the plate is asked for.
-    const PICKUP_SCREENS = ['sFind','s1','sDriver','sCar','s2','s4','sProt','sIns','s6','s7'];
+    const PICKUP_SCREENS = ['sFind','s1','sDriver','sCar','s2','s4','sProt','sIns','sCard','s6','s7'];
     const RETURN_SCREENS = ['sFind','sOut','sCar','s8','s9','s9b','s10','s10b','s11'];
-    const ALL_SCREENS    = ['sFind','sOut','s1','sDriver','sProt','sIns','sCar','s2','s4','s6','s7','s8','s9','s9b','s10','s10b','s11','sPaid','sCancel','sResched','sExtend'];
+    const ALL_SCREENS    = ['sFind','sOut','s1','sDriver','sProt','sIns','sCar','s2','s4','sCard','s6','s7','s8','s9','s9b','s10','s10b','s11','sPaid','sCancel','sResched','sExtend'];
 
     // A field typed into on the screen being left keeps the focus, and the
     // iPhone keyboard with it, after its screen is hidden. iPhone Safari then
@@ -2221,6 +2314,83 @@
       payBalanceBtn.disabled = false;
       payBalanceBtn.textContent = 'Pay by card';
     });
+    // ── Save a card (card on file) ──
+    // card-setup asks the Worker for a SetupIntent on the company's own
+    // Stripe account (or says a card is saved already); Stripe's own Payment
+    // Element takes the card; card-saved keeps its brand and last four.
+    // 'pickup' carries on to Review and sign; 'standalone' is the fleetr.ai
+    // booking's link (#a=token&card=1) and ends on its own.
+    let cardMode = 'pickup', cardStripe = null, cardElements = null;
+    const sCardSave = document.getElementById('sCardSave'), sCardSkip = document.getElementById('sCardSkip');
+    const sCardError = document.getElementById('sCardError'), sCardSaved = document.getElementById('sCardSaved');
+    const sCardForm = document.getElementById('sCardForm'), sCardLead = document.getElementById('sCardLead');
+    const loadStripeJs = () => new Promise((resolve, reject) => {
+      if (window.Stripe) return resolve(window.Stripe);
+      const sc = document.createElement('script');
+      sc.src = 'https://js.stripe.com/v3/'; sc.onload = () => resolve(window.Stripe); sc.onerror = () => reject(new Error('stripe.js'));
+      document.head.appendChild(sc);
+    });
+    const cardWords = (c) => `${c.brand ? c.brand.charAt(0).toUpperCase() + c.brand.slice(1) : 'Card'} ending ${c.last4}`;
+    function afterCard() {
+      if (cardMode === 'standalone') {
+        document.getElementById('s7Title').textContent = 'Card saved';
+        document.getElementById('doneSummary').textContent = 'You are all set for pickup. Check in on this app when you arrive.';
+        goTo('s7');
+        return;
+      }
+      sizeCanvas();
+      goTo('s6');
+    }
+    // True when the card screen is shown; false to carry straight on.
+    async function showCardScreen(mode) {
+      cardMode = mode;
+      if (!customerSession || !customerSession.proof) return false;
+      let d = null;
+      try { d = await stripeRenter('card-setup'); } catch (e) { d = null; }
+      if (!d || !d.ok || !d.clientSecret || !d.publishableKey) return false;
+      sCardError.textContent = '';
+      sCardSkip.hidden = mode === 'standalone';
+      if (d.deposit > 0) sCardLead.textContent = `So pickup and return take no time at the counter. At pickup we hold your rental's estimate plus a $${Number(d.deposit).toFixed(0)} deposit, and at return we charge the final total and release the rest.`;
+      if (d.card && d.card.last4) {
+        if (mode === 'pickup') return false;
+        sCardSaved.textContent = `${cardWords(d.card)} is saved for this rental.`;
+        sCardSaved.hidden = false;
+      } else sCardSaved.hidden = true;
+      goTo('sCard');
+      try {
+        const StripeJs = await loadStripeJs();
+        cardStripe = StripeJs(d.publishableKey, { stripeAccount: d.accountId });
+        cardElements = cardStripe.elements({ clientSecret: d.clientSecret, appearance: {
+          theme: 'stripe', variables: { colorPrimary: '#1F1E1D', colorText: '#1F1E1D', colorDanger: '#B42318', fontFamily: 'Inter, system-ui, sans-serif', borderRadius: '10px', spacingUnit: '4px' } } });
+        const el = cardElements.create('payment', { layout: 'tabs', wallets: { applePay: 'auto', googlePay: 'auto' } });
+        document.getElementById('cardElement').innerHTML = '';
+        el.mount('#cardElement');
+      } catch (e) {
+        sCardError.textContent = 'The card form could not load. You can carry on and pay at the counter instead.';
+      }
+      return true;
+    }
+    sCardSave.addEventListener('click', async () => {
+      if (!cardStripe || !cardElements) return;
+      sCardSave.disabled = true; sCardError.textContent = '';
+      sCardSave.innerHTML = '<span class="spinner"></span>Saving…';
+      try {
+        const { error, setupIntent } = await cardStripe.confirmSetup({ elements: cardElements, redirect: 'if_required' });
+        if (error) { sCardError.textContent = error.message || 'Your card could not be saved. Check it and try again.'; return; }
+        const res = await fetch(`${STRIPE_URL}/card-saved`, { method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ ...customerSession.proof, setupIntent: setupIntent.id, from: cardMode === 'standalone' ? 'fleetr.ai' : 'checkin' }) });
+        const out = await res.json().catch(() => null);
+        if (!out || !out.ok) { sCardError.textContent = 'Your card was accepted by Stripe but could not be linked to this rental. Try again.'; return; }
+        afterCard();
+      } catch (e) {
+        sCardError.textContent = 'Could not reach the payments service. Check your connection and try again.';
+      } finally {
+        sCardSave.disabled = false; sCardSave.textContent = 'Save card';
+      }
+    });
+    sCardSkip.addEventListener('click', afterCard);
+    document.getElementById('sCardBack').addEventListener('click', () => goTo(cardMode === 'standalone' ? 'sFind' : (insuranceShown() ? 'sIns' : protectionShown() ? 'sProt' : 's4')));
+
     // Back from a paid link: the amount and the company it was paid to, as
     // the link's return address has them. Null when not back from one.
     function paidReceipt(search) {
@@ -3739,6 +3909,8 @@
         ...lines.coverages.filter(c => c.accepted).map((c, i) => ({ key: `protection:${i}`, label: c.name, protection: true, applies: true, qty: lines.days, amount: c.price })),
       ], customerSession?.reservation?.salesTaxes);
       buildContract();
+      // A card first, if the company takes cards and none is saved yet.
+      if (await showCardScreen('pickup')) return;
       sizeCanvas();
       goTo('s6');
     }
@@ -3992,6 +4164,10 @@
       buildDoneScreen();
       showPhotoUploadWarning('s7PhotoWarning', outcome.photosFailed);
       goTo('s7');
+      // Signed for the car: the hold on a saved card goes on now (the
+      // estimate plus the company's deposit). Nothing to show if there is
+      // no card; a hold that fails goes to the branch's Needs you.
+      stripeRenter('card-hold-renter').catch(() => null);
     });
 
     // ════════════════════════════════════════════════════════════════════════
@@ -4707,7 +4883,14 @@
       };
       const fmtCancelTime = (time, meridiem) => {
         const t = String(time || '').trim();
-        return !t ? '' : /[ap]m/i.test(t) || !meridiem ? t : `${t} ${meridiem}`;
+        if (!t || /[ap]m/i.test(t)) return t;
+        if (meridiem) return `${t} ${meridiem}`;
+        // 24-hour, as fleetr.ai bookings store it: shown as 9:00 AM, the
+        // same as the booking text and every other screen.
+        const hm = /^(\d{1,2}):(\d{2})$/.exec(t);
+        if (!hm) return t;
+        const h = Number(hm[1]);
+        return h > 23 ? t : `${h % 12 || 12}:${hm[2]} ${h < 12 ? 'AM' : 'PM'}`;
       };
 
       let shown = null; // the reservation on screen, for the wording after a cancel
@@ -4795,9 +4978,11 @@
     // last name). A link that finds nothing leaves Find booking, with a note.
     const appToken = (() => {
       if (!location.hash.startsWith('#a=')) return null;
-      const t = location.hash.slice(3);
+      const t = location.hash.slice(3).split('&')[0];
       return /^[A-Za-z0-9_-]{16,64}$/.test(t) ? t : '';
     })();
+    // From the fleetr.ai booking's "Save a card" button: straight to the card.
+    const appWantsCard = /[#&]card=1(&|$)/.test(location.hash);
 
     async function openAppLink(token) {
       const invalid = () => {
@@ -4826,6 +5011,15 @@
       resCodeEl.readOnly = true;
       const r = found.res || {};
       findLastNameEl.value = String(r.lastName || '').trim() || String(r.customer || '').trim().replace(/^.*\s/, '');
+      if (appWantsCard) {
+        startSession(found, token, '');
+        // startSession has already moved on to the license step; a company
+        // that takes no saved cards brings the renter back here to read why.
+        if (!(await showCardScreen('standalone'))) {
+          goTo('sFind');
+          findError.textContent = 'This rental company does not take saved cards. You can pay at the counter when you pick up.';
+        }
+      }
     }
 
     if (appToken !== null && cancelToken === null) openAppLink(appToken);
