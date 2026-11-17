@@ -1035,6 +1035,12 @@
     input:autofill, textarea:autofill, select:autofill{ box-shadow: 0 0 0 1000px #F9F9F7 inset; color: #1F1E1D; }
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([readonly]):focus,
     textarea:not([readonly]):focus{ outline: none; border-color: #F4845F; }
+    /* Save a card */
+    .card-saved { margin: 4px 0 16px; padding: 14px 16px; border-radius: 12px; background: var(--fl-success-soft); color: var(--fl-success); font-weight: 600; }
+    .card-element { min-height: 160px; margin: 8px 0 12px; }
+    .card-skeleton { height: 160px; border-radius: 12px; background: linear-gradient(90deg, var(--fl-sunken), #F8F7F4, var(--fl-sunken)); background-size: 200% 100%; animation: cardShimmer 1.4s ease-in-out infinite; }
+    @keyframes cardShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+    .card-note { font-size: 0.85rem; color: var(--muted); line-height: 1.5; margin: 0 0 8px; }
     /* fleetr design system 1.0, the shared layer: brand text that reads at
        4.5:1, one keyboard focus ring, a press state on every button, and motion
        that stops when the device asks for less. */
@@ -1392,6 +1398,24 @@
     <!-- ═══════════════════════════════════════════════════════════
          Screen 6: Digital Signature
     ═══════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════
+         Save a card (card on file, overnight-nov17): kept by Stripe on
+         the rental company's own account, held at pickup and charged at
+         return. Card details go straight to Stripe, never to fleetr.
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="screen" id="sCard">
+      <button class="return-back-btn" id="sCardBack">Back</button>
+      <h1>Save a card for your rental</h1>
+      <p class="subtitle" id="sCardLead">So pickup and return take no time at the counter. We hold your rental's estimate at pickup and charge the final total when you return it.</p>
+      <div class="card-saved" id="sCardSaved" hidden></div>
+      <div class="card-form" id="sCardForm"><div class="card-element" id="cardElement"><div class="card-skeleton"></div></div></div>
+      <p class="card-note" id="sCardNote">Your card details go straight to Stripe, the payments company. The rental company never sees your full number.</p>
+      <div class="spacer"></div>
+      <div class="error-msg" id="sCardError" role="alert"></div>
+      <button class="btn btn-primary" id="sCardSave">Save card</button>
+      <button class="btn btn-ghost" id="sCardSkip">Not now</button>
+    </div>
+
     <div class="screen" id="s6">
       <button class="return-back-btn" id="s6Back">Back</button>
       <h1>Review and sign</h1>
@@ -1765,9 +1789,9 @@
     // ── Screen routing ────────────────────────────────────────────────────────
     // One task a screen, in order. Protection is counted only when something
     // is offered. sCar is in the return too, for when the plate is asked for.
-    const PICKUP_SCREENS = ['sFind','s1','sDriver','sCar','s2','s4','sProt','sIns','s6','s7'];
+    const PICKUP_SCREENS = ['sFind','s1','sDriver','sCar','s2','s4','sProt','sIns','sCard','s6','s7'];
     const RETURN_SCREENS = ['sFind','sOut','sCar','s8','s9','s9b','s10','s10b','s11'];
-    const ALL_SCREENS    = ['sFind','sOut','s1','sDriver','sProt','sIns','sCar','s2','s4','s6','s7','s8','s9','s9b','s10','s10b','s11','sPaid','sCancel','sResched','sExtend'];
+    const ALL_SCREENS    = ['sFind','sOut','s1','sDriver','sProt','sIns','sCar','s2','s4','sCard','s6','s7','s8','s9','s9b','s10','s10b','s11','sPaid','sCancel','sResched','sExtend'];
 
     // A field typed into on the screen being left keeps the focus, and the
     // iPhone keyboard with it, after its screen is hidden. iPhone Safari then
@@ -2265,6 +2289,83 @@
       payBalanceBtn.disabled = false;
       payBalanceBtn.textContent = 'Pay by card';
     });
+    // ── Save a card (card on file) ──
+    // card-setup asks the Worker for a SetupIntent on the company's own
+    // Stripe account (or says a card is saved already); Stripe's own Payment
+    // Element takes the card; card-saved keeps its brand and last four.
+    // 'pickup' carries on to Review and sign; 'standalone' is the fleetr.ai
+    // booking's link (#a=token&card=1) and ends on its own.
+    let cardMode = 'pickup', cardStripe = null, cardElements = null;
+    const sCardSave = document.getElementById('sCardSave'), sCardSkip = document.getElementById('sCardSkip');
+    const sCardError = document.getElementById('sCardError'), sCardSaved = document.getElementById('sCardSaved');
+    const sCardForm = document.getElementById('sCardForm'), sCardLead = document.getElementById('sCardLead');
+    const loadStripeJs = () => new Promise((resolve, reject) => {
+      if (window.Stripe) return resolve(window.Stripe);
+      const sc = document.createElement('script');
+      sc.src = 'https://js.stripe.com/v3/'; sc.onload = () => resolve(window.Stripe); sc.onerror = () => reject(new Error('stripe.js'));
+      document.head.appendChild(sc);
+    });
+    const cardWords = (c) => `${c.brand ? c.brand.charAt(0).toUpperCase() + c.brand.slice(1) : 'Card'} ending ${c.last4}`;
+    function afterCard() {
+      if (cardMode === 'standalone') {
+        document.getElementById('s7Title').textContent = 'Card saved';
+        document.getElementById('doneSummary').textContent = 'You are all set for pickup. Check in on this app when you arrive.';
+        goTo('s7');
+        return;
+      }
+      sizeCanvas();
+      goTo('s6');
+    }
+    // True when the card screen is shown; false to carry straight on.
+    async function showCardScreen(mode) {
+      cardMode = mode;
+      if (!customerSession || !customerSession.proof) return false;
+      let d = null;
+      try { d = await stripeRenter('card-setup'); } catch (e) { d = null; }
+      if (!d || !d.ok || !d.clientSecret || !d.publishableKey) return false;
+      sCardError.textContent = '';
+      sCardSkip.hidden = mode === 'standalone';
+      if (d.deposit > 0) sCardLead.textContent = `So pickup and return take no time at the counter. At pickup we hold your rental's estimate plus a $${Number(d.deposit).toFixed(0)} deposit, and at return we charge the final total and release the rest.`;
+      if (d.card && d.card.last4) {
+        if (mode === 'pickup') return false;
+        sCardSaved.textContent = `${cardWords(d.card)} is saved for this rental.`;
+        sCardSaved.hidden = false;
+      } else sCardSaved.hidden = true;
+      goTo('sCard');
+      try {
+        const StripeJs = await loadStripeJs();
+        cardStripe = StripeJs(d.publishableKey, { stripeAccount: d.accountId });
+        cardElements = cardStripe.elements({ clientSecret: d.clientSecret, appearance: {
+          theme: 'stripe', variables: { colorPrimary: '#1F1E1D', colorText: '#1F1E1D', colorDanger: '#B42318', fontFamily: 'Inter, system-ui, sans-serif', borderRadius: '10px', spacingUnit: '4px' } } });
+        const el = cardElements.create('payment', { layout: 'tabs', wallets: { applePay: 'auto', googlePay: 'auto' } });
+        document.getElementById('cardElement').innerHTML = '';
+        el.mount('#cardElement');
+      } catch (e) {
+        sCardError.textContent = 'The card form could not load. You can carry on and pay at the counter instead.';
+      }
+      return true;
+    }
+    sCardSave.addEventListener('click', async () => {
+      if (!cardStripe || !cardElements) return;
+      sCardSave.disabled = true; sCardError.textContent = '';
+      sCardSave.innerHTML = '<span class="spinner"></span>Saving…';
+      try {
+        const { error, setupIntent } = await cardStripe.confirmSetup({ elements: cardElements, redirect: 'if_required' });
+        if (error) { sCardError.textContent = error.message || 'Your card could not be saved. Check it and try again.'; return; }
+        const res = await fetch(`${STRIPE_URL}/card-saved`, { method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ ...customerSession.proof, setupIntent: setupIntent.id, from: cardMode === 'standalone' ? 'fleetr.ai' : 'checkin' }) });
+        const out = await res.json().catch(() => null);
+        if (!out || !out.ok) { sCardError.textContent = 'Your card was accepted by Stripe but could not be linked to this rental. Try again.'; return; }
+        afterCard();
+      } catch (e) {
+        sCardError.textContent = 'Could not reach the payments service. Check your connection and try again.';
+      } finally {
+        sCardSave.disabled = false; sCardSave.textContent = 'Save card';
+      }
+    });
+    sCardSkip.addEventListener('click', afterCard);
+    document.getElementById('sCardBack').addEventListener('click', () => goTo(cardMode === 'standalone' ? 'sFind' : (insuranceShown() ? 'sIns' : protectionShown() ? 'sProt' : 's4')));
+
     // Back from a paid link: the amount and the company it was paid to, as
     // the link's return address has them. Null when not back from one.
     function paidReceipt(search) {
@@ -3783,6 +3884,8 @@
         ...lines.coverages.filter(c => c.accepted).map((c, i) => ({ key: `protection:${i}`, label: c.name, protection: true, applies: true, qty: lines.days, amount: c.price })),
       ], customerSession?.reservation?.salesTaxes);
       buildContract();
+      // A card first, if the company takes cards and none is saved yet.
+      if (await showCardScreen('pickup')) return;
       sizeCanvas();
       goTo('s6');
     }
@@ -4036,6 +4139,10 @@
       buildDoneScreen();
       showPhotoUploadWarning('s7PhotoWarning', outcome.photosFailed);
       goTo('s7');
+      // Signed for the car: the hold on a saved card goes on now (the
+      // estimate plus the company's deposit). Nothing to show if there is
+      // no card; a hold that fails goes to the branch's Needs you.
+      stripeRenter('card-hold-renter').catch(() => null);
     });
 
     // ════════════════════════════════════════════════════════════════════════
@@ -4839,9 +4946,11 @@
     // last name). A link that finds nothing leaves Find booking, with a note.
     const appToken = (() => {
       if (!location.hash.startsWith('#a=')) return null;
-      const t = location.hash.slice(3);
+      const t = location.hash.slice(3).split('&')[0];
       return /^[A-Za-z0-9_-]{16,64}$/.test(t) ? t : '';
     })();
+    // From the fleetr.ai booking's "Save a card" button: straight to the card.
+    const appWantsCard = /[#&]card=1(&|$)/.test(location.hash);
 
     async function openAppLink(token) {
       const invalid = () => {
@@ -4870,6 +4979,10 @@
       resCodeEl.readOnly = true;
       const r = found.res || {};
       findLastNameEl.value = String(r.lastName || '').trim() || String(r.customer || '').trim().replace(/^.*\s/, '');
+      if (appWantsCard) {
+        startSession(found, token, '');
+        if (!(await showCardScreen('standalone'))) findError.textContent = 'This rental company does not take saved cards. You can pay at the counter.';
+      }
     }
 
     if (appToken !== null && cancelToken === null) openAppLink(appToken);
