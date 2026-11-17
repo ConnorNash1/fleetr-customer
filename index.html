@@ -1041,6 +1041,29 @@
     .card-skeleton { height: 160px; border-radius: 12px; background: linear-gradient(90deg, var(--fl-sunken), #F8F7F4, var(--fl-sunken)); background-size: 200% 100%; animation: cardShimmer 1.4s ease-in-out infinite; }
     @keyframes cardShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
     .card-note { font-size: 0.85rem; color: var(--muted); line-height: 1.5; margin: 0 0 8px; }
+    /* ── The frame (overnight-nov17) ──────────────────────────────
+       Every screen: Back pinned at the top while it scrolls, and the main
+       button pinned in thumb reach at the bottom of a long screen. On a
+       computer the flow sits as a card in the middle of the page. */
+    .find-title { margin-top: 4px; }
+    .find-lead { margin-bottom: 28px; }
+    .screen > .return-back-btn {
+      position: sticky; top: 0; z-index: 20;
+      margin: -12px -24px 6px; padding: 12px 24px 12px; width: calc(100% + 48px);
+      background: rgba(249, 249, 247, 0.92); -webkit-backdrop-filter: saturate(1.4) blur(10px); backdrop-filter: saturate(1.4) blur(10px);
+      min-height: 44px; display: flex; align-items: center; gap: 6px;
+    }
+    .screen > .return-back-btn::before { content: ""; width: 9px; height: 9px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); margin-right: 4px; }
+    .screen > .spacer ~ .btn-primary {
+      position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 15;
+    }
+    @media (min-width: 768px) {
+      body { background: var(--fl-sunken); }
+      .app { margin: 40px auto; min-height: auto; background: var(--fl-paper); border: 1px solid var(--fl-line); border-radius: var(--fl-radius-xl); box-shadow: var(--fl-shadow-md); overflow: clip; }
+      .screen { min-height: min(820px, calc(100dvh - 80px)); padding: 48px 40px 40px; }
+      .screen > .return-back-btn { margin: -36px -40px 6px; padding: 16px 40px; width: calc(100% + 80px); }
+    }
+
     /* fleetr design system 1.0, the shared layer: brand text that reads at
        4.5:1, one keyboard focus ring, a press state on every button, and motion
        that stops when the device asks for less. */
@@ -1069,6 +1092,8 @@
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen active" id="sFind">
       <img class="logo" src="/fleetr-logo-terracotta-on-white.svg" alt="fleetr" />
+      <h1 class="find-title">Check in for your rental</h1>
+      <p class="subtitle find-lead">Enter the code from your booking text and the last name on it. After this, pickup takes a minute.</p>
       <label for="resCodeInput">Reservation code</label>
       <input type="text" id="resCodeInput" placeholder="ABC 123 456"
              autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
