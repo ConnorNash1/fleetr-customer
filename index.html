@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="theme-color" content="#F9F9F7" />
-  <title>fleetr vehicle inspection</title>
+  <title>fleetr check-in</title>
   <link rel="icon" href="/favicon.ico" sizes="48x48">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
@@ -1409,9 +1409,9 @@
       <button class="return-back-btn" id="s9Back">Back</button>
       <h1>Fuel level</h1>
 
-      <label>Fuel level</label>
+      <label for="returnFuelRange">Fuel level</label>
       <div class="fuel-value" id="returnFuelValueLabel">Full</div>
-      <input type="range" id="returnFuelRange" min="0" max="8" value="8" step="1" />
+      <input type="range" id="returnFuelRange" min="0" max="8" value="8" step="1" aria-valuetext="Full" />
       <div class="fuel-labels">
         <span>Empty</span><span>1/4</span><span>1/2</span><span>3/4</span><span>Full</span>
       </div>
@@ -1673,6 +1673,8 @@
     let returnDamageDescription  = '';
     let returnVehicleLocation    = '';
 
+    // Days count every started 24 hours with a 29-minute grace (booking_days).
+    const DAY_GRACE_MS = 29 * 60000;
     const FUEL_LABELS = ['Empty', '⅛', '¼', '⅜', '½', '⅝', '¾', '⅞', 'Full'];
     // How a level reads on screen. The labels above are what the database keeps.
     const FUEL_FRACTIONS = { '⅛': '1/8', '¼': '1/4', '⅜': '3/8', '½': '1/2', '⅝': '5/8', '¾': '3/4', '⅞': '7/8' };
@@ -2647,6 +2649,7 @@
         const rfr = document.getElementById('returnFuelRange');
         rfr.value = '8';
         document.getElementById('returnFuelValueLabel').textContent    = fuelText(FUEL_LABELS[8]);
+        rfr.setAttribute('aria-valuetext', fuelText(FUEL_LABELS[8]));
         document.getElementById('returnFuelPreview').style.display     = 'none';
         document.getElementById('returnFuelPreview').src               = '';
         document.getElementById('s10Error').textContent                = '';
@@ -3014,7 +3017,11 @@
           damageList.innerHTML     = '';
           damageList.style.display = 'none';
           noDamageMsg.style.display = 'block';
+          // "The following damage has been documented" with none below it
+          // read wrong: at pickup it shows only when there is some.
+          if (flowType !== 'return' && noDamageMsg.id === 'noDamageMsg') document.getElementById('s2InfoBox').style.display = 'none';
         } else {
+          document.getElementById('s2InfoBox').style.display = '';
           damageList.innerHTML     = damage.map(d => `<li>${d}</li>`).join('');
           damageList.style.display = 'block';
           noDamageMsg.style.display = 'none';
@@ -3031,12 +3038,15 @@
     // read, the notes shown already stay.
     const VEHICLE_DAMAGE_URL = 'https://fleetr-ai-proxy.connor-0a5.workers.dev/checkin/vehicle-damage';
     let damageAsked = 0;
-    async function loadVehicleDamage(v, fallback) {
+    // listId and noneId: the pickup's Pre-existing damage list by default, or
+    // the return's Previous damage list, which showed only the plate lookup's
+    // notes and said there was none when the pickup had just listed some.
+    async function loadVehicleDamage(v, fallback, { listId = 'damageList', noneId = 'noDamageMsg' } = {}) {
       const proof = customerSession?.proof;
       if (!v?.id || !proof?.code) return;
       const asked = ++damageAsked;
-      const damageList  = document.getElementById('damageList');
-      const noDamageMsg = document.getElementById('noDamageMsg');
+      const damageList  = document.getElementById(listId);
+      const noDamageMsg = document.getElementById(noneId);
       let out = null;
       try {
         const res = await fetch(VEHICLE_DAMAGE_URL, {
@@ -3083,6 +3093,7 @@
       });
       damageList.style.display = 'block';
       noDamageMsg.style.display = 'none';
+      if (noneId === 'noDamageMsg') document.getElementById('s2InfoBox').style.display = '';
     }
 
     document.getElementById('s2Btn').addEventListener('click', () => goTo('s4'));
@@ -3758,7 +3769,7 @@
       const to    = /^\d{4}-\d{2}-\d{2}$/.test(String(res.returnDate || '')) ? res.returnDate : null;
       const due   = to ? new Date(`${to}T${/^\d{1,2}:\d{2}$/.test(String(res.returnTime || '')) ? String(res.returnTime).padStart(5, '0') : '23:59'}:00`) : null;
       const days  = contractPrice?.price?.days
-        || (due ? Math.max(1, Math.ceil((due - Date.now()) / 86400000)) : 1);
+        || (due ? Math.max(1, Math.ceil((due - Date.now() - DAY_GRACE_MS) / 86400000)) : 1);
       const rate  = Number(res.dailyRate) || 0;
       const rentalBreakdown = contractPrice?.price?.rental || null;
       const vehicleLines = rentalBreakdown
@@ -3823,16 +3834,19 @@
 
       summary.appendChild(card('Rental', [
         ['Out', longDate(today)],
-        ['Due', to ? longDate(to) : ''],
+        // The due-back the price was worked out to: picked up early, the booked
+        // days stand and it moves earlier by as much (rental_price_by_link).
+        ['Due', contractPrice?.return ? dueText(contractPrice.return, true) : to ? longDate(to) : ''],
         ['Daily rate', money(rate)],
       ]));
 
+      // One line under the Coverages heading, not "Coverages" twice.
       summary.appendChild(card('Coverages', vehicle?.switchPickup
-        ? [['Coverages', 'As on your rental agreement']]
-        : insuranceShown() ? [['Coverages', 'Your own insurance']]
+        ? [['Cover', 'As on your rental agreement']]
+        : insuranceShown() ? [['Cover', 'Your own insurance']]
         : coverages.length
           ? coverages.map(c => [c.name, c.accepted ? `${money(c.price)} per day` : 'Declined'])
-          : [['Coverages', 'None offered']]));
+          : [['Cover', 'None offered']]));
 
       const damage = coverages.filter(c => c.accepted && c.damage);
       if (damage.length) summary.appendChild(card('What you pay for damage', damage.map(c => [c.name, c.damage])));
@@ -4251,6 +4265,8 @@
     returnFuelRange.addEventListener('input', () => {
       returnFuelLevel = parseInt(returnFuelRange.value);
       returnFuelLabel.textContent = fuelText(FUEL_LABELS[returnFuelLevel]);
+      // Read aloud as the gauge reads, "1/4", not the slider's step "2".
+      returnFuelRange.setAttribute('aria-valuetext', returnFuelLabel.textContent);
     });
 
     // Live camera only; see openLiveCamera. Taking it again replaces it.
@@ -4276,18 +4292,25 @@
     // ════════════════════════════════════════════════════════════════════════
     // Screen 9b: Return · Step 3 of 5 · Previous Damage on Record
     // ════════════════════════════════════════════════════════════════════════
+    // The plate lookup's notes at once, then every damage record on the
+    // vehicle, as the pickup's Pre-existing damage screen shows them.
     function buildReturnPrevDamageScreen() {
       const damage      = Array.isArray(vehicle?.damage) ? vehicle.damage : [];
       const listEl      = document.getElementById('returnPrevDamageList');
       const noDamageEl  = document.getElementById('returnNoDamageMsg');
-      if (damage.length === 0) {
-        listEl.style.display     = 'none';
-        noDamageEl.style.display = 'block';
-      } else {
-        listEl.innerHTML         = damage.map(d => `<li>${d}</li>`).join('');
-        listEl.style.display     = 'block';
-        noDamageEl.style.display = 'none';
-      }
+      const showNotes = () => {
+        if (damage.length === 0) {
+          listEl.innerHTML         = '';
+          listEl.style.display     = 'none';
+          noDamageEl.style.display = 'block';
+        } else {
+          listEl.innerHTML         = damage.map(d => `<li>${d}</li>`).join('');
+          listEl.style.display     = 'block';
+          noDamageEl.style.display = 'none';
+        }
+      };
+      showNotes();
+      loadVehicleDamage(vehicle, showNotes, { listId: 'returnPrevDamageList', noneId: 'returnNoDamageMsg' });
     }
 
     document.getElementById('s9bBack').addEventListener('click', () => goTo('s9'));
@@ -4392,7 +4415,7 @@
           const exact = Math.round(l.perDay * l.days * 100) === Math.round(l.amount * 100);
           return {
             key: i === 0 ? 'vehicle' : `vehicle:${i}`,
-            label: 'Vehicle',
+            label: 'Vehicle Cost',
             applies, qty: String(l.days), qtyPlaceholder: 'Days',
             amount: String(exact ? l.perDay : Math.round((l.amount / l.days) * 1e6) / 1e6),
           };
@@ -4857,7 +4880,7 @@
         return `${day} at ${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
       };
       const money = (n) => `$${Number(n).toFixed(2)}`;
-      const daysBetween = (a, b) => Math.max(1, Math.ceil((b - a) / 86400000));
+      const daysBetween = (a, b) => Math.max(1, Math.ceil((b - a - DAY_GRACE_MS) / 86400000));
 
       let proof = null;        // { code, last }: what both calls are given
       let current = null;      // what reschedule_lookup returned
@@ -5129,7 +5152,7 @@
       };
       const money = (n) => `$${Number(n).toFixed(2)}`;
       // Days counted as fleetr.ai counts them (booking_days).
-      const daysBetween = (a, b) => Math.max(1, Math.ceil((b - a) / 86400000));
+      const daysBetween = (a, b) => Math.max(1, Math.ceil((b - a - DAY_GRACE_MS) / 86400000));
       const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
       const toMins = (hm) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(hm || '')); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
 
