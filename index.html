@@ -1124,6 +1124,9 @@
     @media (min-width: 768px){
       .app{ border-radius: var(--fl-radius-xl); box-shadow: 0 4px 6px rgba(31, 30, 29, 0.06), 0 12px 24px rgba(31, 30, 29, 0.10); }
     }
+    /* Small labels in sentence case, not spaced capitals: Optional, the scan
+       status, the ticket's heading (typography: no shouted labels). */
+    .optional-badge, .scan-status, .done-summary[data-ticket]::before{ text-transform: none; letter-spacing: 0; font-size: 0.8125rem; font-weight: 500; }
     /* A text button keeps its look but gets a finger-sized target on touch
        (control rhythm: compact to the eye, operable to the hand). */
     @media (pointer: coarse), (max-width: 767px){
