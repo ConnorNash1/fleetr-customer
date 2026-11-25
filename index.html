@@ -1076,6 +1076,56 @@
     }
     /* end fleetr design system shared layer */
 
+    /* ── Design layer, meta-design-test (Nov 25) ───────────────────────────
+       Approach adapted from Astryx (github.com/meta/astryx, MIT licence,
+       Copyright (c) 2026 Meta Platforms, Inc.): principles and token roles
+       rebuilt in fleetr's own CSS, no Astryx code. Corners by role (control
+       10, card 12), one edge language per surface (a quiet border, shadows
+       only where something floats), type roles in sentence case, hover and
+       press as tints, focus as an outline, motion that settles. Touch sizes
+       stay: this is a phone-first flow. The logo and terracotta are unchanged. */
+    :root{
+      --fl-tint-hover: rgba(31, 30, 29, 0.04); --fl-tint-press: rgba(31, 30, 29, 0.08);
+      --fl-ease-out: cubic-bezier(0.24, 1, 0.4, 1); --fl-dur-fast: 125ms; --fl-dur: 200ms; --fl-dur-slow: 300ms;
+      --shadow: 0 2px 4px rgba(31, 30, 29, 0.05), 0 4px 12px rgba(31, 30, 29, 0.08);
+    }
+    [data-keys] :focus-visible, .fl-kbd :focus-visible{ box-shadow: none; outline: 2px solid var(--fl-brand-press); outline-offset: 2px; }
+    .progress-fill{ transition: width var(--fl-dur-slow) var(--fl-ease-out); }
+    /* Type roles: a calmer page heading, supporting text quieter, labels in
+       sentence case (the step label no longer shouts). */
+    h1{ font-size: 1.625rem; line-height: 1.25; letter-spacing: -0.015em; }
+    .subtitle{ font-size: 0.95rem; line-height: 1.5; color: var(--fl-ink-2); }
+    .step-label{ font-size: 0.8125rem; letter-spacing: 0; text-transform: none; }
+    label{ font-size: 0.875rem; font-weight: 500; color: var(--fl-ink-2); margin-bottom: 6px; }
+    /* Fields: control corners, a border that reads, focus on the border. */
+    input[type="text"], input[type="number"], input[type="password"], input[type="date"], select, textarea{
+      border-color: var(--fl-line-strong); transition: border-color var(--fl-dur-fast) var(--fl-ease-out), box-shadow var(--fl-dur-fast) var(--fl-ease-out); }
+    input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:focus, input[type="date"]:focus, select:focus, textarea:focus{
+      border-color: var(--fl-brand-press); box-shadow: 0 0 0 1px var(--fl-brand-press); }
+    /* Buttons: flat, the press a tint not a jump; secondary a quiet border
+       whose hover is a tint, not an ink fill. */
+    .btn{ border-radius: var(--fl-radius); transition: background-color var(--fl-dur-fast) var(--fl-ease-out), border-color var(--fl-dur-fast) var(--fl-ease-out), color var(--fl-dur-fast) var(--fl-ease-out), filter var(--fl-dur-fast) var(--fl-ease-out); }
+    .btn:active{ transform: none; filter: brightness(0.96); }
+    .btn-primary{ box-shadow: none; }
+    .btn-primary:active{ box-shadow: none; }
+    .btn-secondary{ border-color: var(--fl-line-strong); background: var(--fl-surface); }
+    .btn-danger{ box-shadow: none; }
+    @media (hover: hover){
+      .btn-secondary:hover:not(:disabled){ background: var(--fl-surface); background-image: linear-gradient(var(--fl-tint-hover), var(--fl-tint-hover)); color: var(--ink); border-color: rgba(31, 30, 29, 0.38); }
+      .btn-ghost:hover:not(:disabled){ background: var(--fl-tint-hover); }
+    }
+    /* Cards: card corners, a quiet border, no shadow; the accent follows the
+       card's shape instead of a stripe against its corners. */
+    .vehicle-card, .info-box, .damage-list li, .photo-link, .protection-card, .upload-warning{ border-radius: var(--fl-radius-lg); box-shadow: none; }
+    .protection-card{ border-color: var(--fl-line); }
+    .info-box{ box-shadow: none; border: 1px solid rgba(244, 132, 95, 0.45); background: var(--fl-brand-wash); }
+    .done-summary{ background: var(--fl-surface); border-radius: var(--fl-radius-lg); box-shadow: none; }
+    .done-row{ font-size: 0.9375rem; }
+    @media (min-width: 768px){
+      .app{ border-radius: var(--fl-radius-xl); box-shadow: 0 4px 6px rgba(31, 30, 29, 0.06), 0 12px 24px rgba(31, 30, 29, 0.10); }
+    }
+    /* end design layer, meta-design-test */
+
   </style>
 </head>
 <body>
