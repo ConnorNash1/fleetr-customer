@@ -2361,7 +2361,10 @@
         ...lines.coverages.filter(c => c.accepted).map((c, i) => ({ key: `protection:${i}`, label: c.name, protection: true, applies: true, qty: lines.days, amount: c.price })),
       ], customerSession?.reservation?.salesTaxes, cat);
       if (!totals) return null;
-      return Math.max(0, Number(cat === 'Retail' ? totals.grandTotal : totals.customerTotal) || 0);
+      // With tax: the total for a retail rental; for a bill-to, the renter's
+      // own part with its tax (customerDue), as the hold at pickup works it
+      // out (found on staging: customerTotal is before tax).
+      return Math.max(0, Number(cat === 'Retail' ? totals.grandTotal : totals.customerDue) || 0);
     }
     // What the card step asks, and why: 'required', 'optional' or 'none', with
     // the words for it in real dollar amounts.
