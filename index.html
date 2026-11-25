@@ -1092,8 +1092,8 @@
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen active" id="sFind">
       <img class="logo" src="/fleetr-logo-terracotta-on-white.svg" alt="fleetr" />
-      <h1 class="find-title">Check in for your rental</h1>
-      <p class="subtitle find-lead">Enter the code from your booking text and the last name on it. After this, pickup takes a minute.</p>
+      <h1 class="find-title" id="findTitle">Check in for your rental</h1>
+      <p class="subtitle find-lead" id="findLead">Enter the code from your booking text and the last name on it. After this, pickup takes a minute.</p>
       <label for="resCodeInput">Reservation code</label>
       <input type="text" id="resCodeInput" placeholder="ABC 123 456"
              autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
@@ -1133,7 +1133,7 @@
     ═══════════════════════════════════════════════════════════ -->
     <div class="screen" id="sOut">
       <button class="return-back-btn" id="outBack" type="button">Back</button>
-      <h1>Your rental</h1>
+      <h1>Return your vehicle</h1>
       <div class="done-summary" id="outSummary" data-ticket="Your rental"></div>
       <div class="error-msg" id="outError"></div>
       <div class="spacer"></div>
@@ -2199,6 +2199,8 @@
     });
 
     resCodeEl.addEventListener('input', () => {
+      // A new code typed: back to checking in until it is found (Nov 25).
+      if (findOut) setFindOut(false);
       // Count raw (non-space) chars before the cursor so we can restore position after formatting
       const rawBeforeCursor = resCodeEl.value.slice(0, resCodeEl.selectionStart).replace(/[^A-Za-z0-9]/g, '').length;
 
@@ -2341,16 +2343,60 @@
       sizeCanvas();
       goTo('s6');
     }
+    // ── The card rules (Nov 25) ──
+    // Card payments off: card-setup says no, and there is no card step. On:
+    // the renter's own share of the estimate (charge_totals, the one
+    // calculation, with the protection chosen here) decides it. Above $0, a
+    // card is required and the hold is that share plus the deposit. $0 (a
+    // bill-to pays it all): Card hold on bill-to rentals says off (no card
+    // step), optional (Not now is offered) or required, and the hold is the
+    // deposit only.
+    const CARD_BILL_TO = { retail: 'Retail', bodyshop_dealership: 'Bodyshop/Dealership', insurance: 'Insurance', corporate: 'Corporate' };
+    const dollars = (n) => { const v = Math.round((Number(n) || 0) * 100) / 100; return Number.isInteger(v) ? `$${v.toLocaleString('en-CA')}` : `$${v.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; };
+    async function renterPortion(billingType) {
+      const lines = contractChargeLines();
+      const cat = CARD_BILL_TO[billingType] || 'Retail';
+      const totals = await chargeTotalsFor([
+        { key: 'vehicle', applies: true, qty: 1, amount: lines.rental },
+        ...lines.coverages.filter(c => c.accepted).map((c, i) => ({ key: `protection:${i}`, label: c.name, protection: true, applies: true, qty: lines.days, amount: c.price })),
+      ], customerSession?.reservation?.salesTaxes, cat);
+      if (!totals) return null;
+      return Math.max(0, Number(cat === 'Retail' ? totals.grandTotal : totals.customerTotal) || 0);
+    }
+    // What the card step asks, and why: 'required', 'optional' or 'none', with
+    // the words for it in real dollar amounts.
+    function cardRule(portion, deposit, billToHold) {
+      const dep = Math.max(0, Number(deposit) || 0);
+      if (portion > 0) {
+        return { need: 'required', lead: dep > 0
+          ? `We'll hold ${dollars(portion + dep)} at pickup (${dollars(portion)} estimate + ${dollars(dep)} deposit). You won't be charged now. The final total, estimated at ${dollars(portion)}, is charged when you return the car.`
+          : `We'll hold ${dollars(portion)} at pickup. You won't be charged now. The final total, estimated at ${dollars(portion)}, is charged when you return the car.` };
+      }
+      const need = billToHold === 'required' ? 'required' : billToHold === 'optional' ? 'optional' : 'none';
+      return { need, lead: dep > 0
+        ? `We'll hold a ${dollars(dep)} deposit for extras like fuel or extra days. You'll only be charged if there are extras.`
+        : `You'll only be charged if there are extras like fuel or extra days.` };
+    }
+    let cardRequired = false;
     // True when the card screen is shown; false to carry straight on.
     async function showCardScreen(mode) {
       cardMode = mode;
+      cardRequired = false;
       if (!customerSession || !customerSession.proof) return false;
       let d = null;
       try { d = await stripeRenter('card-setup'); } catch (e) { d = null; }
       if (!d || !d.ok || !d.clientSecret || !d.publishableKey) return false;
+      const portion = await renterPortion(d.billingType);
+      // No estimate could be had: a card is asked for as if something is owed,
+      // so a rental is never let through without one when one is needed.
+      const rule = cardRule(portion == null ? 1 : portion, d.deposit, d.billToHold);
+      if (rule.need === 'none') return false;
+      cardRequired = rule.need === 'required';
       sCardError.textContent = '';
-      sCardSkip.hidden = mode === 'standalone';
-      if (d.deposit > 0) sCardLead.textContent = `So pickup and return take no time at the counter. At pickup we hold your rental's estimate plus a $${Number(d.deposit).toFixed(0)} deposit, and at return we charge the final total and release the rest.`;
+      sCardSkip.hidden = mode === 'standalone' || cardRequired;
+      sCardLead.textContent = portion == null
+        ? `We'll hold your rental's estimate${Number(d.deposit) > 0 ? ` plus a ${dollars(d.deposit)} deposit` : ''} at pickup. You won't be charged now. The final total is charged when you return the car.`
+        : rule.lead;
       if (d.card && d.card.last4) {
         if (mode === 'pickup') return false;
         sCardSaved.textContent = `${cardWords(d.card)} is saved for this rental.`;
@@ -2366,7 +2412,9 @@
         document.getElementById('cardElement').innerHTML = '';
         el.mount('#cardElement');
       } catch (e) {
-        sCardError.textContent = 'The card form could not load. You can carry on and pay at the counter instead.';
+        sCardError.textContent = cardRequired
+          ? 'The card form could not load. Check your connection, then go back and try again.'
+          : 'The card form could not load. You can carry on and pay at the counter instead.';
       }
       return true;
     }
@@ -2388,7 +2436,8 @@
         sCardSave.disabled = false; sCardSave.textContent = 'Save card';
       }
     });
-    sCardSkip.addEventListener('click', afterCard);
+    // Not now: only where the card is optional (never shown when required).
+    sCardSkip.addEventListener('click', () => { if (!cardRequired) afterCard(); });
     document.getElementById('sCardBack').addEventListener('click', () => goTo(cardMode === 'standalone' ? 'sFind' : (insuranceShown() ? 'sIns' : protectionShown() ? 'sProt' : 's4')));
 
     // Back from a paid link: the amount and the company it was paid to, as
@@ -2442,8 +2491,21 @@
       const h = d.getUTCHours(), m = d.getUTCMinutes();
       return `${day}, ${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
     }
+    // A rental already picked up (Nov 25): the first screen says Return your
+    // vehicle and its button Return vehicle, never Start check-in.
+    let findOut = false;
+    const findBtnLabel = () => (findOut ? 'Return vehicle' : 'Start check-in');
+    function setFindOut(out) {
+      findOut = !!out;
+      document.getElementById('findTitle').textContent = findOut ? 'Return your vehicle' : 'Check in for your rental';
+      document.getElementById('findLead').textContent = findOut
+        ? 'Your rental is out. When you bring the car back, return it here.'
+        : 'Enter the code from your booking text and the last name on it. After this, pickup takes a minute.';
+      if (!findBookingBtn.disabled) findBookingBtn.textContent = findBtnLabel();
+    }
     async function showOut() {
       flowType = 'return';
+      setFindOut(true);
       const proof = customerSession.proof;
       findBookingBtn.disabled = true;
       findBookingBtn.innerHTML = '<span class="spinner"></span>Finding your rental…';
@@ -2461,7 +2523,7 @@
         } catch (e) { console.warn('lookup_vehicle_by_plate failed:', e); }
       }
       findBookingBtn.disabled = false;
-      findBookingBtn.textContent = 'Start check-in';
+      findBookingBtn.textContent = findBtnLabel();
       const rows = [
         ['Vehicle', [car?.make, car?.model].filter(Boolean).join(' ')],
         ['Plate', plate],
@@ -2508,7 +2570,7 @@
       let found = null;
       try { found = await loadBooking(proof.code, proof.lastName); } catch (e) { console.warn('find booking failed:', e); }
       findBookingBtn.disabled = false;
-      findBookingBtn.textContent = 'Start check-in';
+      findBookingBtn.textContent = findBtnLabel();
       if (!found) { findError.textContent = 'Unable to connect. Please try again.'; return; }
       if (found.reason) {
         findError.textContent = found.reason === 'rate_limited' ? RATE_LIMITED
@@ -5011,6 +5073,7 @@
       resCodeEl.readOnly = true;
       const r = found.res || {};
       findLastNameEl.value = String(r.lastName || '').trim() || String(r.customer || '').trim().replace(/^.*\s/, '');
+      setFindOut(found.booking && found.booking.stage === 'out');
       if (appWantsCard) {
         startSession(found, token, '');
         // startSession has already moved on to the license step; a company
