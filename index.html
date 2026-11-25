@@ -2354,11 +2354,11 @@
     const CARD_BILL_TO = { retail: 'Retail', bodyshop_dealership: 'Bodyshop/Dealership', insurance: 'Insurance', corporate: 'Corporate' };
     const dollars = (n) => { const v = Math.round((Number(n) || 0) * 100) / 100; return Number.isInteger(v) ? `$${v.toLocaleString('en-CA')}` : `$${v.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; };
     async function renterPortion(billingType) {
-      const lines = contractChargeLines();
+      const parts = contractChargeLines();
       const cat = CARD_BILL_TO[billingType] || 'Retail';
       const totals = await chargeTotalsFor([
-        { key: 'vehicle', applies: true, qty: 1, amount: lines.rental },
-        ...lines.coverages.filter(c => c.accepted).map((c, i) => ({ key: `protection:${i}`, label: c.name, protection: true, applies: true, qty: lines.days, amount: c.price })),
+        { key: 'vehicle', applies: true, qty: 1, amount: parts.rental },
+        ...parts.coverages.filter(c => c.accepted).map((c, i) => ({ key: `protection:${i}`, label: c.name, protection: true, applies: true, qty: parts.days, amount: c.price })),
       ], customerSession?.reservation?.salesTaxes, cat);
       if (!totals) return null;
       // With tax: the total for a retail rental; for a bill-to, the renter's
