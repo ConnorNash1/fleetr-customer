@@ -1124,6 +1124,11 @@
     @media (min-width: 768px){
       .app{ border-radius: var(--fl-radius-xl); box-shadow: 0 4px 6px rgba(31, 30, 29, 0.06), 0 12px 24px rgba(31, 30, 29, 0.10); }
     }
+    /* A text button keeps its look but gets a finger-sized target on touch
+       (control rhythm: compact to the eye, operable to the hand). */
+    @media (pointer: coarse), (max-width: 767px){
+      .btn-manual-toggle{ min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+    }
     /* end design layer, meta-design-test */
 
   </style>
