@@ -1187,11 +1187,12 @@
     /* A picker's arrow is the same drawn chevron, pointing down. */
     .select-wrap::after{ content: ""; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: translateY(-70%) rotate(45deg); right: 18px; }
     /* Summary rows: the value keeps its room (up to 60% of the row, a long
-       date breaking evenly instead of leaving "PM" alone) and the label takes
+       date breaking evenly instead of leaving "PM" alone; less the row's 16px
+       gap, so 40% plus 60% never runs past the edge) and the label takes
        the rest, wrapping only when it has to (a charge with its days and
        rate), never squeezed under 40%. */
     .done-row .dr-label{ flex: 0 1 auto; min-width: 40%; text-wrap: pretty; }
-    .done-row .dr-value{ flex: 0 0 auto; max-width: 60%; text-wrap: balance; }
+    .done-row .dr-value{ flex: 0 0 auto; max-width: calc(60% - 16px); text-wrap: balance; }
     /* Phone: a step with a Back link starts near the top; the 72px top is
        for the logo screen, not for every step. */
     @media (max-width: 767px){
