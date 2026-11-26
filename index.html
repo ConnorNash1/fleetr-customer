@@ -4862,7 +4862,8 @@
           : it.key === 'mileage' ? (d.distanceUnit === 'mi' ? ' mi' : ' km')
           : Number(it.qty) === 1 ? ' day' : ' days';
         const charges = e.lines.filter((it) => it.applies && lineItemAmount(it) !== 0).map((it) => {
-          const name = it.key === 'gas' ? 'Fuel' : String(it.label || 'Charge').trim();
+          // The vehicle line is stored as 'Vehicle Cost'; it is shown in sentence case (Nov 26).
+          const name = it.key === 'gas' ? 'Fuel' : it.label === 'Vehicle Cost' ? 'Vehicle cost' : String(it.label || 'Charge').trim();
           return [it.key === 'vehicle:cap' ? name : `${name}, ${it.qty}${unit(it)} at ${rate(it.amount)}`, money(lineItemAmount(it))];
         });
         const t = totals;
