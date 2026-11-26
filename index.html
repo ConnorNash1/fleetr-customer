@@ -1186,10 +1186,12 @@
     .btn-icon{ flex: none; }
     /* A picker's arrow is the same drawn chevron, pointing down. */
     .select-wrap::after{ content: ""; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: translateY(-70%) rotate(45deg); right: 18px; }
-    /* Summary rows: the label keeps one line; a long value breaks evenly
-       instead of leaving "PM" alone. */
-    .done-row .dr-label{ white-space: nowrap; flex: none; }
-    .done-row .dr-value{ text-wrap: balance; min-width: 0; }
+    /* Summary rows: the value keeps its room (up to 60% of the row, a long
+       date breaking evenly instead of leaving "PM" alone) and the label takes
+       the rest, wrapping only when it has to (a charge with its days and
+       rate), never squeezed under 40%. */
+    .done-row .dr-label{ flex: 0 1 auto; min-width: 40%; text-wrap: pretty; }
+    .done-row .dr-value{ flex: 0 0 auto; max-width: 60%; text-wrap: balance; }
     /* Phone: a step with a Back link starts near the top; the 72px top is
        for the logo screen, not for every step. */
     @media (max-width: 767px){
@@ -1199,6 +1201,12 @@
        at its right, centred on the card. */
     .car-card{ position: relative; padding-right: 44px; }
     .car-card::after{ content: ""; position: absolute; right: 20px; top: 50%; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: translateY(-50%) rotate(-45deg); }
+    /* Your insurance: the insurer's error line takes no room until it has
+       something to say, so the two fields sit one field gap apart. */
+    #insCompanyError:empty{ min-height: 0; height: 0; margin: 0; }
+    /* A done screen's warning is a notice like the info box: a soft
+       terracotta edge all round, not a stripe against its corners. */
+    .upload-warning{ border: 1px solid rgba(244, 132, 95, 0.45); border-left-width: 1px; background: var(--fl-brand-wash); }
     /* end design layer, meta-design-test */
 
   </style>
