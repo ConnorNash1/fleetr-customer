@@ -1207,6 +1207,10 @@
     /* A done screen's warning is a notice like the info box: a soft
        terracotta edge all round, not a stripe against its corners. */
     .upload-warning{ border: 1px solid rgba(244, 132, 95, 0.45); border-left-width: 1px; background: var(--fl-brand-wash); }
+    /* The done-screen warning: its lines, then Try again under them. */
+    .upload-warning__line{ margin: 0; }
+    .upload-warning__line + .upload-warning__line{ margin-top: 8px; }
+    .upload-warning__retry{ margin-top: 8px; padding-left: 0; padding-right: 0; }
     /* end design layer, meta-design-test */
 
   </style>
@@ -4360,7 +4364,7 @@
       }
 
       buildDoneScreen();
-      showPhotoUploadWarning('s7PhotoWarning', outcome.photosFailed);
+      showPhotoUploadWarning('s7PhotoWarning', outcome.photosFailed, { retry: outcome.retry, insuranceNotSaved: outcome.insuranceNotSaved });
       goTo('s7');
       // Signed for the car: the hold on a saved card goes on now (the
       // estimate plus the company's deposit). Nothing to show if there is
@@ -4379,15 +4383,19 @@
     // ever overwritten.
     //
     // A photo that fails is tried once more, then logged and counted; the done
-    // screen tells the customer to have staff check the photos. The pickup or
-    // return itself is already saved by then and is not undone.
+    // screen tells the customer, with Try again (retryPhotoUploads). The
+    // pickup or return itself is already saved by then and is not undone.
+    // Only photos that exist are sent (Nov 26): an item with no file, or an
+    // empty one, is skipped rather than tried and counted as a failure.
     async function uploadAgreementPhotos(photoPath, items) {
       const stamp = Date.now();
       let uploaded = 0;
       const failed = [];
+      const failedItems = [];
       const paths = {};
       const saved = [];
-      for (const [i, item] of items.entries()) {
+      const real = (items || []).filter(item => item && typeof Blob !== 'undefined' && item.file instanceof Blob && item.file.size > 0);
+      for (const [i, item] of real.entries()) {
         const path = `${photoPath}${item.name}-${stamp}-${i + 1}.jpg`;
         paths[item.name] = path;
         let error = null;
@@ -4396,11 +4404,24 @@
             .upload(path, item.file, { contentType: item.file.type || 'image/jpeg', upsert: false }));
           if (!error) break;
         }
-        if (error) { failed.push(path); console.warn('photo upload FAILED:', path, error); }
+        if (error) { failed.push(path); failedItems.push(item); console.warn('photo upload FAILED:', path, error); }
         else { uploaded++; saved.push({ path, note: item.note || '' }); }
       }
       console.log('photo upload:', { photoPath, uploaded, failed: failed.length });
-      return { uploaded, failed, paths, saved };
+      return { uploaded, failed, failedItems, paths, saved };
+    }
+
+    // Try again on the done screen: the photos that did not upload, to the
+    // same folder (the storage policy allows adding there for two hours), with
+    // their notes, and the insurance card's path when that was one of them.
+    // Returns the photos still not uploaded, and whether the insurance saved
+    // with the card this time.
+    async function retryPhotoUploads(job) {
+      const again = await uploadAgreementPhotos(job.photoPath, job.items);
+      await savePhotoNotes(job.rentalAgreementId, job.code, again.saved);
+      const cardPath = again.saved.find(x => x.path === again.paths['insurance-card'])?.path;
+      const insuranceSaved = !!(cardPath && job.insurance && await saveInsurance(job.rentalAgreementId, job.code, cardPath));
+      return { ...job, items: again.failedItems, insuranceSaved };
     }
 
     // The notes on damage photos just uploaded (save_photo_notes), for staff
@@ -4433,15 +4454,39 @@
       return false;
     }
 
-    // Tells the customer on the done screen when photos did not make it, so
-    // staff can check them, instead of the failure only reaching the console.
-    // Hidden again when everything uploaded.
-    function showPhotoUploadWarning(elementId, failedCount) {
+    // Tells the customer on the done screen when photos did not make it, with
+    // Try again for those photos, instead of the failure only reaching the
+    // console; and, apart, when the insurance details did not save. Hidden
+    // when everything made it.
+    function showPhotoUploadWarning(elementId, failedCount, { retry = null, insuranceNotSaved = false } = {}) {
       const el = document.getElementById(elementId);
-      el.hidden = !(failedCount > 0);
-      el.textContent = failedCount > 0
-        ? `${failedCount === 1 ? '1 photo' : `${failedCount} photos`} did not upload. Please ask a member of staff to check the photos for this rental.`
-        : '';
+      el.replaceChildren();
+      el.hidden = !(failedCount > 0 || insuranceNotSaved);
+      if (failedCount > 0) {
+        const line = document.createElement('p');
+        line.className = 'upload-warning__line';
+        line.textContent = `${failedCount === 1 ? '1 photo' : `${failedCount} photos`} did not upload. Try again, or ask a member of staff to check the photos for this rental.`;
+        el.appendChild(line);
+        if (retry && retry.items && retry.items.length) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn-manual-toggle upload-warning__retry';
+          btn.textContent = 'Try again';
+          btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            btn.textContent = 'Trying again…';
+            const left = await retryPhotoUploads(retry);
+            showPhotoUploadWarning(elementId, left.items.length, { retry: left, insuranceNotSaved: insuranceNotSaved && !left.insuranceSaved });
+          });
+          el.appendChild(btn);
+        }
+      }
+      if (insuranceNotSaved) {
+        const line = document.createElement('p');
+        line.className = 'upload-warning__line';
+        line.textContent = 'Your insurance details did not save. Please show your insurance to a member of staff.';
+        el.appendChild(line);
+      }
     }
 
     // Messages for the reasons complete_pickup, complete_switch_pickup and
@@ -4543,9 +4588,15 @@
         ...(insurance && insurancePhoto ? [{ name: 'insurance-card', file: insurancePhoto }] : []),
       ]);
       await savePhotoNotes(result.rentalAgreementId, proof.code, upload.saved);
-      let notSaved = 0;
-      if (insurance && !await saveInsurance(result.rentalAgreementId, proof.code, upload.paths['insurance-card'])) notSaved = 1;
-      return { ok: true, photosFailed: upload.failed.length + notSaved };
+      // The insurer and policy are details, not a photo: a save that fails is
+      // said as such on the done screen, never counted as a photo (Nov 26).
+      const cardSaved = upload.saved.some(x => x.path === upload.paths['insurance-card']);
+      const insuranceNotSaved = insurance
+        && !await saveInsurance(result.rentalAgreementId, proof.code, cardSaved ? upload.paths['insurance-card'] : null);
+      return {
+        ok: true, photosFailed: upload.failed.length, insuranceNotSaved,
+        retry: { photoPath: result.photoPath, items: upload.failedItems, rentalAgreementId: result.rentalAgreementId, code: proof.code, insurance },
+      };
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -4993,7 +5044,8 @@
         ...(returnHasDamage ? returnDamagePhotos.map(p => ({ name: 'return-damage', file: p.file, note: p.note })) : []),
       ]);
       await savePhotoNotes(result.rentalAgreementId, proof.code, upload.saved);
-      showPhotoUploadWarning('s11PhotoWarning', upload.failed.length);
+      showPhotoUploadWarning('s11PhotoWarning', upload.failed.length,
+        { retry: { photoPath: result.photoPath, items: upload.failedItems, rentalAgreementId: result.rentalAgreementId, code: proof.code } });
       await showFinalCharges(proof);
 
       locBtn.disabled = false;
