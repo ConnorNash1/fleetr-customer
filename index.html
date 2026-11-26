@@ -1148,9 +1148,9 @@
     /* A heading straight above a button gets a group gap, not 10px. */
     .screen > h1:not(:has(+ .subtitle)):not(:has(+ p)){ margin-bottom: 24px; }
     /* A sticky action carries a band of the card behind it, so fields
-       scrolling under it fade out instead of showing through its edges. */
-    .screen > .spacer ~ .btn-primary{ box-shadow: 0 0 0 12px var(--fl-paper), 0 -16px 20px 8px var(--fl-paper); }
-    .screen > .spacer ~ .btn-primary:active{ box-shadow: 0 0 0 12px var(--fl-paper), 0 -16px 20px 8px var(--fl-paper); }
+       scrolling under it stop at its edge instead of showing round it (a
+       solid ring, no fade, so the line just above it stays readable). */
+    .screen > .spacer ~ .btn-primary, .screen > .spacer ~ .btn-primary:active{ box-shadow: 0 0 0 12px var(--fl-paper); }
     /* Small print breaks evenly, never one word alone; its links in the
        readable brand text colour. */
     .consent-line{ text-wrap: balance; }
@@ -1164,7 +1164,7 @@
     .protection-card__choices + *{ margin-top: 12px; }
     .protection-card > :last-child{ margin-bottom: 0; }
     /* Running text never leaves one word alone on its last line. */
-    p, .subtitle, .protection-card__wording, .info-box{ text-wrap: pretty; }
+    p, .subtitle, .protection-card__wording, .info-box, .damage-list{ text-wrap: pretty; }
     /* Centred headings and leads break into even lines. */
     h1, .subtitle{ text-wrap: balance; }
     /* Review and sign: each detail on its own line with room around it, the
@@ -1176,6 +1176,8 @@
     /* Charges: amounts as dark as their items and in even figures, so the
        column of money reads straight down. */
     .charge-row .protection-card__price{ color: var(--ink); font-variant-numeric: tabular-nums; }
+    /* A long charge breaks evenly, its days and rate kept together. */
+    .charge-row > :first-child{ text-wrap: balance; }
     /* A ticket's coloured heading follows the card's corners instead of
        poking square past them. */
     .done-summary[data-ticket]{ overflow: clip; }
@@ -1188,6 +1190,15 @@
        instead of leaving "PM" alone. */
     .done-row .dr-label{ white-space: nowrap; flex: none; }
     .done-row .dr-value{ text-wrap: balance; min-width: 0; }
+    /* Phone: a step with a Back link starts near the top; the 72px top is
+       for the logo screen, not for every step. */
+    @media (max-width: 767px){
+      .screen:has(> .return-back-btn){ padding-top: 28px; }
+    }
+    /* A car to choose shows it opens the next step: the same drawn chevron
+       at its right, centred on the card. */
+    .car-card{ position: relative; padding-right: 44px; }
+    .car-card::after{ content: ""; position: absolute; right: 20px; top: 50%; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: translateY(-50%) rotate(-45deg); }
     /* end design layer, meta-design-test */
 
   </style>
