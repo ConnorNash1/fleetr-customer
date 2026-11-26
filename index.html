@@ -1137,6 +1137,57 @@
     @media (pointer: coarse), (max-width: 767px){
       .btn-manual-toggle{ min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
     }
+    /* Desktop (Nov 26, by eye): the card fits its content instead of a fixed
+       phone height, so a short step has no empty box under it; the warm page
+       runs the whole way down; the action still sits a section gap below. */
+    @media (min-width: 768px){
+      html{ background: var(--fl-sunken); }
+      .screen{ min-height: 0; }
+      .screen > .spacer{ flex: 0 0 auto; min-height: 32px; }
+    }
+    /* A heading straight above a button gets a group gap, not 10px. */
+    .screen > h1:not(:has(+ .subtitle)):not(:has(+ p)){ margin-bottom: 24px; }
+    /* A sticky action carries a band of the card behind it, so fields
+       scrolling under it fade out instead of showing through its edges. */
+    .screen > .spacer ~ .btn-primary{ box-shadow: 0 0 0 12px var(--fl-paper), 0 -16px 20px 8px var(--fl-paper); }
+    .screen > .spacer ~ .btn-primary:active{ box-shadow: 0 0 0 12px var(--fl-paper), 0 -16px 20px 8px var(--fl-paper); }
+    /* Small print breaks evenly, never one word alone; its links in the
+       readable brand text colour. */
+    .consent-line{ text-wrap: balance; }
+    .consent-line a{ color: var(--fl-brand-text); }
+    /* A section's chevron is drawn like the terms card's, not a tiny glyph:
+       pointing right when shut, down when open. */
+    .damage-section__chevron{ font-size: 0; flex: none; width: 8px; height: 8px; margin-right: 4px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform var(--fl-dur) var(--fl-ease-out); }
+    .damage-section__head[aria-expanded="true"] .damage-section__chevron{ transform: rotate(45deg); }
+    /* What follows a card's two choices (the decline note) sits a step below
+       them, not against them; a card's last line adds no extra bottom. */
+    .protection-card__choices + *{ margin-top: 12px; }
+    .protection-card > :last-child{ margin-bottom: 0; }
+    /* Running text never leaves one word alone on its last line. */
+    p, .subtitle, .protection-card__wording, .info-box{ text-wrap: pretty; }
+    /* Centred headings and leads break into even lines. */
+    h1, .subtitle{ text-wrap: balance; }
+    /* Review and sign: each detail on its own line with room around it, the
+       label quiet and the value the thing you read (a receipt's rhythm). */
+    #contractSummary .protection-card__name{ margin-bottom: 8px; }
+    #contractSummary .protection-card__head{ padding: 4px 0; font-size: 0.9375rem; }
+    #contractSummary .protection-card__head > span:first-child{ color: var(--fl-ink-2); }
+    #contractSummary .protection-card__head .protection-card__price{ color: var(--ink); font-weight: 500; text-align: right; }
+    /* Charges: amounts as dark as their items and in even figures, so the
+       column of money reads straight down. */
+    .charge-row .protection-card__price{ color: var(--ink); font-variant-numeric: tabular-nums; }
+    /* A ticket's coloured heading follows the card's corners instead of
+       poking square past them. */
+    .done-summary[data-ticket]{ overflow: clip; }
+    /* A button's icon is a line drawing in the label's colour, not an emoji. */
+    .btn:has(> .btn-icon){ display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn-icon{ flex: none; }
+    /* A picker's arrow is the same drawn chevron, pointing down. */
+    .select-wrap::after{ content: ""; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: translateY(-70%) rotate(45deg); right: 18px; }
+    /* Summary rows: the label keeps one line; a long value breaks evenly
+       instead of leaving "PM" alone. */
+    .done-row .dr-label{ white-space: nowrap; flex: none; }
+    .done-row .dr-value{ text-wrap: balance; min-width: 0; }
     /* end design layer, meta-design-test */
 
   </style>
@@ -1549,7 +1600,7 @@
       <input type="number" id="returnMileageInput" placeholder="e.g. 42 500" min="0" step="1" />
 
       <div class="optional-badge">Optional</div>
-      <button class="btn btn-secondary" id="takeReturnOdoPhotoBtn">📷 &nbsp;Photo of odometer</button>
+      <button class="btn btn-secondary" id="takeReturnOdoPhotoBtn"><svg class="btn-icon" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>Photo of odometer</button>
       <img id="returnOdoPreview" class="return-media-preview" alt="Odometer photo" />
 
       <div class="spacer"></div>
@@ -1573,7 +1624,7 @@
       </div>
 
       <div class="optional-badge">Optional</div>
-      <button class="btn btn-secondary" id="takeReturnFuelPhotoBtn">📷 &nbsp;Photo of fuel gauge</button>
+      <button class="btn btn-secondary" id="takeReturnFuelPhotoBtn"><svg class="btn-icon" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>Photo of fuel gauge</button>
       <img id="returnFuelPreview" class="return-media-preview" alt="Fuel gauge photo" />
 
       <div class="spacer"></div>
